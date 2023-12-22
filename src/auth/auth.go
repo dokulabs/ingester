@@ -2,10 +2,13 @@ package auth
 
 import (
 	"database/sql"
-	"github.com/rs/zerolog/log"
-	"ingester/db"
+	"fmt"
 	"sync"
 	"time"
+
+	"ingester/db"
+
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -59,7 +62,7 @@ func AuthenticateRequest(apiKey string) (string, error) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			log.Info().Msgf("Authorization Failed for an API Key")
-			return "", err
+			return "", fmt.Errorf("AUTHFAILED")
 		}
 		return "", err
 	}

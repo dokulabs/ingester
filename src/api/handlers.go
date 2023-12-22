@@ -3,98 +3,24 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolog/log"
+	"net/http"
+
 	"ingester/auth"
 	"ingester/db"
-	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
-func generateAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
-
-	existingAPIKey := r.Header.Get("Authorization")
-	var request struct {
-		Name string `json:"name"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	newAPIKey, err := db.GenerateAPIKey(existingAPIKey, request.Name)
-	if err != nil {
-		// If the error message is "KEYEXISTS", you can send an http.StatusConflict status code
-		if err.Error() == "KEYEXISTS" {
-			sendJSONResponse(w, http.StatusConflict, "An API Key with the same name already exists")
-			return
-		} else if err.Error() == "AUTHFAILED" {
-			// For other types of errors, an http.StatusUnauthorized or http.StatusInternalServerError could be appropriate
-			sendJSONResponse(w, http.StatusUnauthorized, "Unauthorized: Please check your API key and try again")
-			return
-		} else {
-			sendJSONResponse(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-	}
-
-	// If the key was successfully generated, return it with an http.StatusOK status code
-	sendJSONResponse(w, http.StatusOK, newAPIKey)
+type APIKeyRequest struct {
+	Name string `json:"name"`
 }
 
-// getAPIKeyHandler handles retrieving an existing API key.
-func getAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
-
-	existingAPIKey := r.Header.Get("Authorization")
-	var request struct {
-		Name string `json:"name"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	apiKey, err := db.GetAPIKeyForName(existingAPIKey, request.Name)
-	if err != nil {
-		if err.Error() == "AUTHFAILED" {
-			sendJSONResponse(w, http.StatusUnauthorized, "Unauthorized: Please check your API key and try again")
-			return
-		} else if err.Error() == "NOTFOUND" {
-			sendJSONResponse(w, http.StatusNotFound, fmt.Sprintf("Unable to find API key with the given name %s", request.Name))
-			return
-		}
-		sendJSONResponse(w, http.StatusNotFound, fmt.Sprintf("Unable to find API key with the given name %s", request.Name))
-		return
-	}
-
-	sendJSONResponse(w, http.StatusOK, apiKey)
+func decodeRequestBody(r *http.Request, dest interface{}) error {
+	return json.NewDecoder(r.Body).Decode(dest)
 }
 
-func deleteAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
-
-	existingAPIKey := r.Header.Get("Authorization")
-	var request struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// The ExistingAPIKey is used for authentication purposes
-	err := db.DeleteAPIKey(existingAPIKey, request.Name)
-	if err != nil {
-		if err.Error() == "AUTHFAILED" {
-			sendJSONResponse(w, http.StatusUnauthorized, "Unauthorized: Please check your API key and try again")
-			return
-		} else if err.Error() == "NOTFOUND" {
-			sendJSONResponse(w, http.StatusNotFound, fmt.Sprintf("Unable to find API key with the given name '%s'", request.Name))
-			return
-		}
-		sendJSONResponse(w, http.StatusNotFound, err.Error())
-		return
-	}
-	sendJSONResponse(w, http.StatusOK, "API key deleted successfully")
+func getAuthKey(r *http.Request) string {
+	return r.Header.Get("Authorization")
 }
 
 // sendJSONResponse sends a JSON response with the appropriate headers and status code.
@@ -114,18 +40,89 @@ func sendJSONResponse(w http.ResponseWriter, status int, message string) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func InsertData(w http.ResponseWriter, r *http.Request) {
-	var data map[string]interface{}
-	err := json.NewDecoder(r.Body).Decode(&data)
-	if err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "Invalid Inputs provided")
+func handleAPIKeyErrors(w http.ResponseWriter, err error, name string) {
+	if err.Error() == "KEYEXISTS" {
+		sendJSONResponse(w, http.StatusConflict, fmt.Sprintf("An API Key with the name '%s' already exists", name))
+		return
+	} else if err.Error() == "AUTHFAILED" {
+		sendJSONResponse(w, http.StatusUnauthorized, "Unauthorized: Please check your API Key and try again")
+		return
+	} else if err.Error() == "NOTFOUND" {
+		sendJSONResponse(w, http.StatusNotFound, fmt.Sprintf("Unable to find API Key with the given name %s", name))
+		return
+	} else {
+		sendJSONResponse(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+}
+
+func generateAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
+	var request APIKeyRequest
+
+	if err := decodeRequestBody(r, &request); err != nil {
+		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	data["orgID"], err = auth.AuthenticateRequest(r.Header.Get("Authorization"))
-
+	newAPIKey, err := db.GenerateAPIKey(getAuthKey(r), request.Name)
 	if err != nil {
-		sendJSONResponse(w, http.StatusUnauthorized, "Unauthorized: Please check your API key and try again")
+		handleAPIKeyErrors(w, err, request.Name)
+		return
+	}
+
+	sendJSONResponse(w, http.StatusOK, newAPIKey)
+	return
+}
+
+// getAPIKeyHandler handles retrieving an existing API key.
+func getAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
+	var request APIKeyRequest
+
+	if err := decodeRequestBody(r, &request); err != nil {
+		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	apiKey, err := db.GetAPIKeyForName(getAuthKey(r), request.Name)
+	if err != nil {
+		handleAPIKeyErrors(w, err, request.Name)
+		return
+	}
+
+	sendJSONResponse(w, http.StatusOK, apiKey)
+	return
+}
+
+func deleteAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
+	var request APIKeyRequest
+
+	if err := decodeRequestBody(r, &request); err != nil {
+		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	err := db.DeleteAPIKey(getAuthKey(r), request.Name)
+	if err != nil {
+		handleAPIKeyErrors(w, err, request.Name)
+		return
+	}
+
+	sendJSONResponse(w, http.StatusOK, "API key deleted successfully")
+	return
+}
+
+func DataHandler(w http.ResponseWriter, r *http.Request) {
+	var data map[string]interface{}
+
+	if err := decodeRequestBody(r, &data); err != nil {
+		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	var err error
+	data["orgID"], err = auth.AuthenticateRequest(getAuthKey(r))
+	if err != nil {
+		handleAPIKeyErrors(w, err, "")
 		return
 	}
 

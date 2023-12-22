@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"ingester/utils"
+
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -18,11 +21,22 @@ var (
 	grafanaPostUrl        string       // grafanaPostUrl is the URL used to send data to Grafana Loki.
 )
 
-func Init() {
+func Init() error {
 	httpClient = &http.Client{Timeout: 5 * time.Second}
 	ObservabilityPlatform = os.Getenv("OBSERVABILITY_PLATFORM")
 	if ObservabilityPlatform == "GRAFANA" {
-		grafanaLogsUsername := os.Getenv("GRAFANA_LOGS_USER")
+		envKeys := []string{
+			"GRAFANA_LOGS_USERNAME",
+			"GRAFANA_ACCESS_TOKEN",
+			"GRAFANA_LOKI_URL",
+		}
+
+		err := utils.CheckEnvVars(envKeys)
+		if err != nil {
+			return err
+		}
+
+		grafanaLogsUsername := os.Getenv("GRAFANA_LOGS_USERNAME")
 		grafanaAccessToken := os.Getenv("GRAFANA_ACCESS_TOKEN")
 		grafanaLokiUrl := os.Getenv("GRAFANA_LOKI_URL")
 		// Use strings.TrimPrefix to remove the schemes "http://" and "https://"
@@ -35,6 +49,7 @@ func Init() {
 			grafanaLokiUrl,
 		)
 	}
+	return nil
 }
 
 // SendToPlatform sends observability data to the appropriate platform.

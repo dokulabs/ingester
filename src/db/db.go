@@ -5,14 +5,17 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	_ "github.com/lib/pq"
-	"github.com/rs/zerolog/log"
-	"ingester/cost"
-	"ingester/obsPlatform"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
+
+	"ingester/cost"
+	"ingester/obsPlatform"
+	"ingester/utils"
+
+	_ "github.com/lib/pq"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -153,12 +156,13 @@ func createTable(db *sql.DB, tableName string) error {
 		}
 
 		log.Info().Msgf("Table '%s' created in the database", tableName)
+	} else {
+		log.Info().Msgf("Table '%s' already exists in the database", tableName)
 	}
-	log.Info().Msgf("Table '%s' already exists in the database", tableName)
 	return nil
 }
 
-// Init initializes the database connection.
+// initializeDB() initializes the database connection.
 func initializeDB() error {
 	var dbErr error
 	once.Do(func() {
@@ -252,11 +256,10 @@ func Init() error {
 		"DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST",
 		"DB_PORT", "DB_SSLMODE", "DATA_TABLE_NAME", "APIKEY_TABLE_NAME",
 	}
-	for _, key := range envKeys {
-		if os.Getenv(key) == "" {
-			log.Error().Msgf("Missing required environment variable: %s", key)
-			return fmt.Errorf("Missing required environment variables")
-		}
+
+	err := utils.CheckEnvVars(envKeys)
+	if err != nil {
+		return err
 	}
 
 	dbConfig = DBConfig{
@@ -270,7 +273,7 @@ func Init() error {
 		ApiKeyTableName: os.Getenv("APIKEY_TABLE_NAME"),
 	}
 
-	err := initializeDB()
+	err = initializeDB()
 	if err != nil {
 		log.Error().Err(err).Msg("Error initializing database")
 		return fmt.Errorf("Could not initialize connection to the database: %w", err)
@@ -338,12 +341,9 @@ func GenerateAPIKey(existingAPIKey, name string) (string, error) {
 		} else if err.Error() == "AUTHFAILED" {
 			log.Info().Msg("Authorization Failed for an API Key")
 			return "", err
-		} else if err.Error() != "NOTFOUND" {
-			log.Info().Msgf("API Key with the given name '%s' not found in the database", name)
-			return "", err
 		}
 	}
-
+	log.Info().Msgf("Creating a new API Key with the name: %s", name)
 	// No existing key found, proceed to generate a new API key
 	newAPIKey, _ := GenerateSecureRandomKey()
 
@@ -370,6 +370,7 @@ func GetAPIKeyForName(existingAPIKey, name string) (string, error) {
 	err = db.QueryRow(query, name).Scan(&apiKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			log.Info().Msgf("API Key with the name '%s' currently not found in the database", name)
 			return "", fmt.Errorf("NOTFOUND")
 		}
 		log.Error().Err(err).Msgf("Error retrieving API key for the given name '%s'", name)

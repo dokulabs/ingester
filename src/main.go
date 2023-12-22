@@ -35,9 +35,13 @@ func main() {
 	log.Info().Msg("Setup complete for credentials of the backend Database")
 
 	// Observability Platform Setup
-	if os.Getenv("OBSERVABILITY_PLATFORM") != "DOKU" || os.Getenv("OBSERVABILITY_PLATFORM") != "" {
+	if os.Getenv("OBSERVABILITY_PLATFORM") != "" {
 		log.Info().Msg("Initializing for your Observability Platform")
-		obsPlatform.Init()
+		err := obsPlatform.Init()
+		if err != nil {
+			log.Error().Msg("Exiting due to error in initializing for your Observability Platform")
+			os.Exit(1)
+		}
 		log.Info().Msgf("Setup complete for sending data to %s", obsPlatform.ObservabilityPlatform)
 	}
 
@@ -45,7 +49,7 @@ func main() {
 
 	// Initialize router
 	r := mux.NewRouter()
-	r.HandleFunc("/api/push", api.InsertData).Methods("POST")
+	r.HandleFunc("/api/push", api.DataHandler).Methods("POST")
 	r.HandleFunc("/api/keys", api.APIKeyHandler).Methods("GET", "POST", "DELETE")
 	r.HandleFunc("/", api.BaseEndpoint).Methods("GET")
 
