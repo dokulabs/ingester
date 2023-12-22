@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"ingester/auth"
 	"ingester/db"
@@ -21,6 +22,10 @@ func decodeRequestBody(r *http.Request, dest interface{}) error {
 
 func getAuthKey(r *http.Request) string {
 	return r.Header.Get("Authorization")
+}
+
+func (r *APIKeyRequest) Normalize() {
+	r.Name = strings.ToLower(r.Name)
 }
 
 // sendJSONResponse sends a JSON response with the appropriate headers and status code.
@@ -63,6 +68,7 @@ func generateAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+	request.Normalize()
 
 	newAPIKey, err := db.GenerateAPIKey(getAuthKey(r), request.Name)
 	if err != nil {
@@ -82,6 +88,7 @@ func getAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+	request.Normalize()
 
 	apiKey, err := db.GetAPIKeyForName(getAuthKey(r), request.Name)
 	if err != nil {
@@ -101,6 +108,7 @@ func deleteAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	request.Normalize()
 	err := db.DeleteAPIKey(getAuthKey(r), request.Name)
 	if err != nil {
 		handleAPIKeyErrors(w, err, request.Name)
