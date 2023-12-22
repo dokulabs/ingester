@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"database/sql"
+	"github.com/rs/zerolog/log"
 	"ingester/db"
 	"sync"
 	"time"
@@ -55,6 +57,10 @@ func AuthenticateRequest(apiKey string) (string, error) {
 	// If the key is not in the cache or the cache has expired, call the db to check the API key.
 	name, err := db.CheckAPIKey(apiKey)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Info().Msgf("Authorization Failed for an API Key")
+			return "", err
+		}
 		return "", err
 	}
 

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
+	"github.com/rs/zerolog/log"
 	"net/http"
 	"os"
 	"strconv"
@@ -93,9 +93,9 @@ func SendToPlatform(data map[string]interface{}) {
 
 		_, err := httpClient.Post(grafanaPostUrl, "application/json", bytes.NewBuffer(logs))
 		if err != nil {
-			log.Println("Error sending data to Grafana Loki")
+			log.Error().Err(err).Msg("Error sending data to Grafana Loki")
 		}
-		log.Println("Data sent to Grafana Loki")
+		log.Info().Msg("Data sent to Grafana Loki")
 
 	case "Datadog":
 		fmt.Println("DataDog Observability Platform")

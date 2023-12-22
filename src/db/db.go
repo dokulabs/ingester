@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	_ "github.com/lib/pq"
+	"github.com/rs/zerolog/log"
 	"ingester/cost"
 	"ingester/obsPlatform"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -98,7 +98,7 @@ func PingDB() error {
 	return db.Ping()
 }
 
-func tableExists(db *sql.DB, tableName string) bool {
+func tableExists(db *sql.DB, tableName string) (bool, error) {
 	query := `
 		SELECT EXISTS (
 			SELECT 1
@@ -111,11 +111,10 @@ func tableExists(db *sql.DB, tableName string) bool {
 	var exists bool
 	err := db.QueryRow(query, tableName).Scan(&exists)
 	if err != nil {
-		log.Printf("Error checking table existence: %v\n", err)
-		return false
+		return false, err
 	}
 
-	return exists
+	return exists, nil
 }
 
 func createTable(db *sql.DB, tableName string) error {
@@ -125,45 +124,55 @@ func createTable(db *sql.DB, tableName string) error {
 	} else if tableName == dbConfig.DataTableName {
 		createTableSQL = getCreateDataTableSQL(tableName)
 	}
-	if tableExists(db, tableName) == false {
+
+	exists, err := tableExists(db, tableName)
+	if err != nil {
+		return fmt.Errorf("Error checking table '%s' existence: %w", tableName, err)
+	}
+	if exists == false {
 		_, err := db.Exec(createTableSQL)
 		if err != nil {
-			log.Fatalf("Error creating table: %v", err)
-
+			return fmt.Errorf("Error creating table %s: %w", tableName, err)
 		}
 
 		if tableName == dbConfig.ApiKeyTableName {
 			createIndexSQL := fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_api_key ON %s (api_key);", tableName)
 			_, err = db.Exec(createIndexSQL)
 			if err != nil {
-				log.Fatalf("Error creating index on 'api_key' column: %v", err)
+				return fmt.Errorf("Error creating index on 'api_key' column: %w", err)
 			}
-			log.Printf("Index on 'api_key' column checked/created.")
+			log.Info().Msg("Index on 'api_key' column checked/created.")
 		}
 
 		// If the table to create is the data table, convert it into a hypertable
 		if tableName == dbConfig.DataTableName {
 			_, err := db.Exec("SELECT create_hypertable($1, 'time')", tableName)
 			if err != nil {
-				log.Fatalf("Error creating hypertable: %v", err)
-				return err
+				return fmt.Errorf("Error creating hypertable: %w", err)
 			}
 		}
 
-		log.Printf("Table '%s' created.\n", tableName)
+		log.Info().Msgf("Table '%s' created in the database", tableName)
 	}
+	log.Info().Msgf("Table '%s' already exists in the database", tableName)
 	return nil
 }
 
 // Init initializes the database connection.
-func initializeDB() {
+func initializeDB() error {
+	var dbErr error
 	once.Do(func() {
 		connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 			dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.Password, dbConfig.DBName, dbConfig.SSLMode)
 
-		var err error
-		if db, err = sql.Open("postgres", connStr); err != nil {
-			log.Fatalf("Error connecting to the database: %v", err)
+		if db, dbErr = sql.Open("postgres", connStr); dbErr != nil {
+			log.Error().Err(dbErr).Msg("Error connecting to the database")
+			return
+		}
+
+		dbErr = db.Ping()
+		if dbErr != nil {
+			return
 		}
 
 		// Set maximum open connections and idle connections.
@@ -179,6 +188,7 @@ func initializeDB() {
 		}
 		db.SetMaxIdleConns(maxIdleConns)
 	})
+	return dbErr
 }
 
 // insertDataToDB inserts data into the database.
@@ -228,7 +238,7 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 		data["finetuneJobStatus"],
 	)
 	if err != nil {
-		log.Printf("Database error: %v\n", err)
+		log.Error().Err(err).Msg("Error Inserting data into the database")
 		// Update the response message and status code for error
 		return "Internal Server Error", http.StatusInternalServerError
 	}
@@ -236,7 +246,19 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 	return "Data insertion completed", http.StatusCreated
 }
 
-func Init() {
+func Init() error {
+	// Check for missing required environment variables
+	envKeys := []string{
+		"DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST",
+		"DB_PORT", "DB_SSLMODE", "DATA_TABLE_NAME", "APIKEY_TABLE_NAME",
+	}
+	for _, key := range envKeys {
+		if os.Getenv(key) == "" {
+			log.Error().Msgf("Missing required environment variable: %s", key)
+			return fmt.Errorf("Missing required environment variables")
+		}
+	}
+
 	dbConfig = DBConfig{
 		DBName:          os.Getenv("DB_NAME"),
 		User:            os.Getenv("DB_USER"),
@@ -247,17 +269,27 @@ func Init() {
 		DataTableName:   os.Getenv("DATA_TABLE_NAME"),
 		ApiKeyTableName: os.Getenv("APIKEY_TABLE_NAME"),
 	}
-	initializeDB()
-	err := createTable(db, dbConfig.ApiKeyTableName)
+
+	err := initializeDB()
 	if err != nil {
-		log.Fatalf("Could not create api_keys table: %v", err)
+		log.Error().Err(err).Msg("Error initializing database")
+		return fmt.Errorf("Could not initialize connection to the database: %w", err)
+	}
+
+	log.Info().Msgf("Creating '%s' and '%s' tables in the database if they don't exist", dbConfig.ApiKeyTableName, dbConfig.DataTableName)
+	err = createTable(db, dbConfig.ApiKeyTableName)
+	if err != nil {
+		log.Error().Err(err).Msgf("Error creating table %s", dbConfig.ApiKeyTableName)
+		return err
 	}
 
 	// Create the data table if it doesn't exist and convert it to a hypertable.
 	err = createTable(db, dbConfig.DataTableName)
 	if err != nil {
-		log.Fatalf("Could not create or convert data table to hypertable: %v", err)
+		log.Error().Err(err).Msgf("Error creating table %s", dbConfig.ApiKeyTableName)
+		return err
 	}
+	return nil
 }
 
 // PerformDatabaseInsertion performs the database insertion synchronously.
@@ -292,23 +324,23 @@ func GenerateAPIKey(existingAPIKey, name string) (string, error) {
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", dbConfig.ApiKeyTableName)
 	err := db.QueryRow(countQuery).Scan(&count)
 	if err != nil {
-		return "", fmt.Errorf("failed to check API key table: %v", err)
+		log.Error().Err(err).Msg("Error checking API key table")
+		return "", fmt.Errorf("Failed to check API key table: %v", err)
 	}
 
 	// Only perform the check if the count is greater than zero
 	if count > 0 {
-		_, err = CheckAPIKey(existingAPIKey)
-		if err != nil {
-			return "", fmt.Errorf("Authorization failed: %v", err)
-		}
 		// Attempt to retrieve any existing key for the given name.
 		_, err = GetAPIKeyForName(existingAPIKey, name)
 		if err == nil {
-			// If no error, an API key already exists with this name.
-			return "", fmt.Errorf("A key with this name already exists")
-		} else if err != sql.ErrNoRows {
-			// If we received an error other than ErrNoRows, it may indicate a serious issue rather than simply "not found."
-			return "", fmt.Errorf("unexpected error: %v", err)
+			log.Info().Msg("Error creating new API Key as a key with this name already exists")
+			return "", fmt.Errorf("KEYEXISTS")
+		} else if err.Error() == "AUTHFAILED" {
+			log.Info().Msg("Authorization Failed for an API Key")
+			return "", err
+		} else if err.Error() != "NOTFOUND" {
+			log.Info().Msgf("API Key with the given name '%s' not found in the database", name)
+			return "", err
 		}
 	}
 
@@ -319,7 +351,8 @@ func GenerateAPIKey(existingAPIKey, name string) (string, error) {
 	insertQuery := fmt.Sprintf("INSERT INTO %s (api_key, name) VALUES ($1, $2)", dbConfig.ApiKeyTableName)
 	_, err = db.Exec(insertQuery, newAPIKey, name)
 	if err != nil {
-		return "", fmt.Errorf("failed to insert the new API key: %v", err)
+		log.Error().Err(err).Msg("Error inserting new API key in the database")
+		return "", err
 	}
 
 	return newAPIKey, nil
@@ -329,13 +362,17 @@ func GenerateAPIKey(existingAPIKey, name string) (string, error) {
 func GetAPIKeyForName(existingAPIKey, name string) (string, error) {
 	_, err := CheckAPIKey(existingAPIKey)
 	if err != nil {
-		return "", fmt.Errorf("Authorization failed")
+		return "", fmt.Errorf("AUTHFAILED")
 	}
 
 	var apiKey string
 	query := fmt.Sprintf("SELECT api_key FROM %s WHERE name = $1", dbConfig.ApiKeyTableName)
 	err = db.QueryRow(query, name).Scan(&apiKey)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("NOTFOUND")
+		}
+		log.Error().Err(err).Msgf("Error retrieving API key for the given name '%s'", name)
 		return "", err
 	}
 
@@ -345,8 +382,13 @@ func GetAPIKeyForName(existingAPIKey, name string) (string, error) {
 func DeleteAPIKey(existingAPIKey, name string) error {
 	apiKey, err := GetAPIKeyForName(existingAPIKey, name)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("API Key with name '%s' not found", name)
+		if err.Error() == "AUTHFAILED" {
+			log.Info().Msgf("Authorization Failed for an API Key")
+			return err
+		}
+		if err.Error() == "NOTFOUND" {
+			log.Info().Msgf("API Key with the given name '%s' not found in the database", name)
+			return err
 		}
 		return err
 	}
@@ -354,7 +396,8 @@ func DeleteAPIKey(existingAPIKey, name string) error {
 	query := fmt.Sprintf("DELETE FROM %s WHERE api_key = $1", dbConfig.ApiKeyTableName)
 	_, err = db.Exec(query, apiKey)
 	if err != nil {
-		return fmt.Errorf("Failed to delete API key")
+		log.Error().Err(err).Msg("Error deleting API key")
+		return err
 	}
 
 	return nil
@@ -367,6 +410,7 @@ func GenerateSecureRandomKey() (string, error) {
 	randomBytes := make([]byte, randomPartLength)
 	_, err := rand.Read(randomBytes)
 	if err != nil {
+		log.Error().Err(err).Msg("Error generating random bytes")
 		// In the case of an error, return it as we cannot generate a key.
 		return "", err
 	}
