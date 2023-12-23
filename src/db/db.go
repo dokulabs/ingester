@@ -65,6 +65,25 @@ func PingDB() error {
 	return db.Ping()
 }
 
+// GenerateSecureRandomKey should generate a secure random string to be used as an API key.
+func generateSecureRandomKey() (string, error) {
+	randomPartLength := 40 / 2 // Each byte becomes two hex characters, so we need half as many bytes.
+
+	randomBytes := make([]byte, randomPartLength)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		log.Error().Err(err).Msg("Error generating random bytes")
+		// In the case of an error, return it as we cannot generate a key.
+		return "", err
+	}
+
+	// Encode the random bytes as a hex string and prefix with 'dk'.
+	randomHexString := hex.EncodeToString(randomBytes)
+	apiKey := "dk" + randomHexString
+
+	return apiKey, nil
+}
+
 // getCreateAPIKeysTableSQL returns the SQL query to create the API keys table.
 func getCreateAPIKeysTableSQL(tableName string) string {
 	return fmt.Sprintf(`
@@ -203,11 +222,11 @@ func initializeDB() error {
 func insertDataToDB(data map[string]interface{}) (string, int) {
 	// Calculate usage cost based on the endpoint type
 	if data["endpoint"] == "openai.embeddings" {
-		data["usageCost"] = cost.CalculateEmbeddingsCost(data["promptTokens"].(float64), data["model"].(string))
+		data["usageCost"], _ = cost.CalculateEmbeddingsCost(data["promptTokens"].(float64), data["model"].(string))
 	} else if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "anthropic.completions" {
-		data["usageCost"] = cost.CalculateChatCost(data["promptTokens"].(float64), data["completionTokens"].(float64), data["model"].(string))
+		data["usageCost"], _ = cost.CalculateChatCost(data["promptTokens"].(float64), data["completionTokens"].(float64), data["model"].(string))
 	} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
-		data["usageCost"] = cost.CalculateImageCost(data["model"].(string), data["imageSize"].(string), data["imageQuality"].(string))
+		data["usageCost"], _ = cost.CalculateImageCost(data["model"].(string), data["imageSize"].(string), data["imageQuality"].(string))
 	}
 
 	go obsPlatform.SendToPlatform(data)
@@ -250,7 +269,7 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 		// Update the response message and status code for error
 		return "Internal Server Error", http.StatusInternalServerError
 	}
-
+	
 	return "Data insertion completed", http.StatusCreated
 }
 
@@ -327,7 +346,7 @@ func CheckAPIKey(apiKey string) (string, error) {
 
 // GenerateAPIKey generates a new API key for a given name and stores it in the database.
 func GenerateAPIKey(existingAPIKey, name string) (string, error) {
-	// If there are any existing API keys, authorize the provided API key before proceeding
+	// If there are any existing API keys, authenticate the provided API key before proceeding
 	var count int
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", dbConfig.ApiKeyTableName)
 	err := db.QueryRow(countQuery).Scan(&count)
@@ -341,44 +360,48 @@ func GenerateAPIKey(existingAPIKey, name string) (string, error) {
 		// Attempt to retrieve any existing key for the given name.
 		_, err = GetAPIKeyForName(existingAPIKey, name)
 		if err == nil {
-			log.Info().Msg("Error creating new API Key as a key with this name already exists")
+			log.Warn().Msgf("Error creating new API Key as a key with the name '%s' already exists", name)
 			return "", fmt.Errorf("KEYEXISTS")
 		} else if err.Error() == "AUTHFAILED" {
-			log.Info().Msg("Authorization Failed for an API Key")
 			return "", err
 		}
 	}
-	log.Info().Msgf("Creating a new API Key with the name: %s", name)
+
 	// No existing key found, proceed to generate a new API key
-	newAPIKey, _ := GenerateSecureRandomKey()
+	log.Info().Msgf("Creating a new API Key with the name: %s", name)
+	newAPIKey, _ := generateSecureRandomKey()
 
 	// Insert the new API key into the database
 	insertQuery := fmt.Sprintf("INSERT INTO %s (api_key, name) VALUES ($1, $2)", dbConfig.ApiKeyTableName)
 	_, err = db.Exec(insertQuery, newAPIKey, name)
 	if err != nil {
-		log.Error().Err(err).Msg("Error inserting new API key in the database")
+		log.Error().Err(err).Msg("Error inserting the new API key in the database")
 		return "", err
 	}
-
+	log.Info().Msgf("API Key with the name '%s' created successfully", name)
 	return newAPIKey, nil
 }
 
 // GetAPIKeyForName retrieves an API key for a given name from the database.
 func GetAPIKeyForName(existingAPIKey, name string) (string, error) {
+	
+	// Autheticate the provided API key before proceeding
 	_, err := CheckAPIKey(existingAPIKey)
 	if err != nil {
+		log.Warn().Msg("Authorization Failed for an API Key")
 		return "", fmt.Errorf("AUTHFAILED")
 	}
 
+	// Retrieve the API key for the given name
 	var apiKey string
 	query := fmt.Sprintf("SELECT api_key FROM %s WHERE name = $1", dbConfig.ApiKeyTableName)
 	err = db.QueryRow(query, name).Scan(&apiKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Info().Msgf("API Key with the name '%s' currently not found in the database", name)
+			log.Warn().Msgf("API Key with the name '%s' currently not found in the database", name)
 			return "", fmt.Errorf("NOTFOUND")
 		}
-		log.Error().Err(err).Msgf("Error retrieving API key for the given name '%s'", name)
+		log.Warn().Err(err).Msgf("Error retrieving API key for the name '%s'", name)
 		return "", err
 	}
 
@@ -387,44 +410,28 @@ func GetAPIKeyForName(existingAPIKey, name string) (string, error) {
 
 // DeleteAPIKey deletes an API key for a given name from the database.
 func DeleteAPIKey(existingAPIKey, name string) error {
+	
+	// Autheticate the provided API key before proceeding and check if the API key exists
 	apiKey, err := GetAPIKeyForName(existingAPIKey, name)
 	if err != nil {
 		if err.Error() == "AUTHFAILED" {
-			log.Info().Msgf("Authorization Failed for an API Key")
 			return err
 		}
 		if err.Error() == "NOTFOUND" {
-			log.Info().Msgf("API Key with the given name '%s' not found in the database", name)
+			log.Warn().Msgf("API Key with the name '%s' currently not found in the database", name)
 			return err
 		}
 		return err
 	}
 
+	// Delete the API key from the database
+	log.Info().Msgf("Deleting API Key with the name '%s' from the database", name)
 	query := fmt.Sprintf("DELETE FROM %s WHERE api_key = $1", dbConfig.ApiKeyTableName)
 	_, err = db.Exec(query, apiKey)
 	if err != nil {
 		log.Error().Err(err).Msg("Error deleting API key")
 		return err
 	}
-
+	log.Info().Msgf("API Key with the name '%s' deleted successfully", name)
 	return nil
-}
-
-// GenerateSecureRandomKey should generate a secure random string to be used as an API key.
-func GenerateSecureRandomKey() (string, error) {
-	randomPartLength := 40 / 2 // Each byte becomes two hex characters, so we need half as many bytes.
-
-	randomBytes := make([]byte, randomPartLength)
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		log.Error().Err(err).Msg("Error generating random bytes")
-		// In the case of an error, return it as we cannot generate a key.
-		return "", err
-	}
-
-	// Encode the random bytes as a hex string and prefix with 'dk'.
-	randomHexString := hex.EncodeToString(randomBytes)
-	apiKey := "dk" + randomHexString
-
-	return apiKey, nil
 }

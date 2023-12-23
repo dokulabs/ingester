@@ -12,6 +12,7 @@ import (
 	"ingester/auth"
 	"ingester/db"
 	"ingester/obsPlatform"
+	"ingester/cost"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
@@ -57,7 +58,8 @@ func main() {
 	log.Info().Msg("Initializing connection to the backend database")
 	err := db.Init()
 	if err != nil {
-		log.Error().Msg("Exiting due to error in initializing connection to the backend database")
+		log.Error().Msg("Unable to initialize connection to the backend database")
+		log.Info().Msg("Shutting down server")
 		os.Exit(1)
 	}
 	log.Info().Msg("Successfully initialized connection to the backend database")
@@ -68,11 +70,26 @@ func main() {
 		err := obsPlatform.Init()
 		if err != nil {
 			log.Error().Msg("Exiting due to error in initializing for your Observability Platform")
+			log.Info().Msg("Shutting down server")
 			os.Exit(1)
 		}
 		log.Info().Msgf("Setup complete for sending data to %s", obsPlatform.ObservabilityPlatform)
 	}
 
+	if os.Getenv("COSTING_JSON_FILE_PATH") != "" {
+		log.Info().Msg("Initializing LLM Pricing Information from JSON file")
+		// Load pricing data from JSON file
+		if err := cost.LoadPricing(os.Getenv("COSTING_JSON_FILE_PATH")); err != nil {
+			log.Error().Err(err).Msg("Failed to load LLM pricing information")
+			log.Info().Msg("Shutting down server")
+			os.Exit(1)
+		}
+		log.Info().Msg("Successfully initialized LLM Pricing Information from JSON file")
+	} else {
+		log.Error().Msg("COSTING_JSON_FILE_PATH environment variable is not set")
+		log.Info().Msg("Shutting down server")
+		os.Exit(1)
+	}
 	// Cache eviction setup for the authentication process
 	auth.InitializeCacheEviction()
 
