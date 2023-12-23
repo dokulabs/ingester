@@ -12,32 +12,47 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	// Constants for error messages
+	errMsgKeyExists   = "An API Key with the name '%s' already exists"
+	errMsgAuthFailed  = "Unauthorized: Please check your API Key and try again"
+	errMsgKeyNotFound = "Unable to find API Key with the given name %s"
+	errMsgInvalidBody = "Invalid request body"
+)
+
+// APIKeyRequest represents the expected request structure for API Key related endpoints.
 type APIKeyRequest struct {
 	Name string `json:"name"`
 }
 
-func decodeRequestBody(r *http.Request, dest interface{}) error {
-	return json.NewDecoder(r.Body).Decode(dest)
+// jsonResponse represents the expected response structure for all endpoints.
+type jsonResponse struct {
+	Status  int         `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
 }
 
-func getAuthKey(r *http.Request) string {
-	return r.Header.Get("Authorization")
-}
-
+// Normalize capitalizes names fields in the request body.
 func (r *APIKeyRequest) Normalize() {
 	r.Name = strings.ToLower(r.Name)
 }
 
-// sendJSONResponse sends a JSON response with the appropriate headers and status code.
+// decodeRequestBody decodes the JSON request body into the destination struct.
+func decodeRequestBody(r *http.Request, dest interface{}) error {
+	return json.NewDecoder(r.Body).Decode(dest)
+}
+
+// getAuthKey retrieves the API Key from the request header.
+func getAuthKey(r *http.Request) string {
+	return r.Header.Get("Authorization")
+}
+
+// sendJSONResponse constructs and sends a JSON response with appropriate headers.
 func sendJSONResponse(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	response := struct {
-		Status  int         `json:"status"`
-		Message string      `json:"message"`
-		Data    interface{} `json:"data,omitempty"`
-	}{
+	response := jsonResponse{
 		Status:  status,
 		Message: message,
 	}
@@ -45,15 +60,16 @@ func sendJSONResponse(w http.ResponseWriter, status int, message string) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// handleAPIKeyErrors centralizes the error handling logic for API Key operations.
 func handleAPIKeyErrors(w http.ResponseWriter, err error, name string) {
 	if err.Error() == "KEYEXISTS" {
-		sendJSONResponse(w, http.StatusConflict, fmt.Sprintf("An API Key with the name '%s' already exists", name))
+		sendJSONResponse(w, http.StatusConflict, fmt.Sprintf(errMsgKeyExists, name))
 		return
 	} else if err.Error() == "AUTHFAILED" {
-		sendJSONResponse(w, http.StatusUnauthorized, "Unauthorized: Please check your API Key and try again")
+		sendJSONResponse(w, http.StatusUnauthorized, errMsgAuthFailed)
 		return
 	} else if err.Error() == "NOTFOUND" {
-		sendJSONResponse(w, http.StatusNotFound, fmt.Sprintf("Unable to find API Key with the given name %s", name))
+		sendJSONResponse(w, http.StatusNotFound, fmt.Sprintf(errMsgKeyNotFound, name))
 		return
 	} else {
 		sendJSONResponse(w, http.StatusInternalServerError, err.Error())
@@ -61,11 +77,12 @@ func handleAPIKeyErrors(w http.ResponseWriter, err error, name string) {
 	}
 }
 
+// generateAPIKeyHandler handles the creation of a new API Key
 func generateAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	var request APIKeyRequest
 
 	if err := decodeRequestBody(r, &request); err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
+		sendJSONResponse(w, http.StatusBadRequest, errMsgInvalidBody)
 		return
 	}
 	request.Normalize()
@@ -77,7 +94,6 @@ func generateAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendJSONResponse(w, http.StatusOK, newAPIKey)
-	return
 }
 
 // getAPIKeyHandler handles retrieving an existing API key.
@@ -85,7 +101,7 @@ func getAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	var request APIKeyRequest
 
 	if err := decodeRequestBody(r, &request); err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
+		sendJSONResponse(w, http.StatusBadRequest, errMsgInvalidBody)
 		return
 	}
 	request.Normalize()
@@ -97,14 +113,14 @@ func getAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendJSONResponse(w, http.StatusOK, apiKey)
-	return
 }
 
+// deleteAPIKeyHandler handles deleting an existing API key.
 func deleteAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	var request APIKeyRequest
 
 	if err := decodeRequestBody(r, &request); err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
+		sendJSONResponse(w, http.StatusBadRequest, errMsgInvalidBody)
 		return
 	}
 
@@ -116,19 +132,19 @@ func deleteAPIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendJSONResponse(w, http.StatusOK, "API key deleted successfully")
-	return
 }
 
+// DataHandler handles data related operations recieved on `/api/push` endpoint.
 func DataHandler(w http.ResponseWriter, r *http.Request) {
 	var data map[string]interface{}
 
 	if err := decodeRequestBody(r, &data); err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "Invalid request body")
+		sendJSONResponse(w, http.StatusBadRequest, errMsgInvalidBody)
 		return
 	}
 
 	var err error
-	data["orgID"], err = auth.AuthenticateRequest(getAuthKey(r))
+	data["name"], err = auth.AuthenticateRequest(getAuthKey(r))
 	if err != nil {
 		handleAPIKeyErrors(w, err, "")
 		return
@@ -148,6 +164,7 @@ func DataHandler(w http.ResponseWriter, r *http.Request) {
 	sendJSONResponse(w, statusCode, responseMessage)
 }
 
+// APIKeyHandler handles all API Key tasks recieved on `/api/keys` endpoint.
 func APIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
@@ -161,9 +178,10 @@ func APIKeyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// BaseEndpoint serves as a health check and entry point for the service.
 func BaseEndpoint(w http.ResponseWriter, r *http.Request) {
 	if err := db.PingDB(); err != nil {
-		log.Info().Msgf("Health check failed: %v", err) // Log the error
+		log.Error().Err(err).Msgf("Health check failed") // Log the error
 		sendJSONResponse(w, http.StatusServiceUnavailable, "Database is currently not reachable from the server")
 		return
 	}

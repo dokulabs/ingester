@@ -18,15 +18,21 @@ var (
 	CacheEntryDuration = time.Minute * 10
 )
 
+// cacheEntry represents an entry in the API key cache.
 type cacheEntry struct {
 	Name      string
 	Timestamp time.Time
 }
 
+// InitializeCacheEviction sets up periodic eviction of expired cache entries.
 func InitializeCacheEviction() {
 	go func() {
+		ticker := time.NewTicker(CacheEntryDuration)
+		defer ticker.Stop()
+
 		for {
-			time.Sleep(CacheEntryDuration)
+			<-ticker.C // This blocks until the ticker sends a value
+			log.Info().Msg("Evicting Expired API Key Cache Entries")
 			evictExpiredEntries()
 		}
 	}()
@@ -45,15 +51,13 @@ func evictExpiredEntries() {
 	})
 }
 
-// AuthenticateOrg checks the provided API key against the known keys.
+// AuthenticateRequest checks the provided API key against the known keys.
 func AuthenticateRequest(apiKey string) (string, error) {
-	// Attempt to retrieve the name associated with the API key from the cache.
+	/// Attempt to retrieve API Key from the cache.
 	if val, ok := apiKeyCache.Load(apiKey); ok {
-		if entry, ok := val.(cacheEntry); ok {
-			// Check if the cache entry is still within the valid duration.
-			if time.Since(entry.Timestamp) < CacheEntryDuration {
-				return entry.Name, nil
-			}
+		entry := val.(cacheEntry)
+		if time.Since(entry.Timestamp) < CacheEntryDuration {
+			return entry.Name, nil
 		}
 	}
 
@@ -61,7 +65,7 @@ func AuthenticateRequest(apiKey string) (string, error) {
 	name, err := db.CheckAPIKey(apiKey)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Info().Msgf("Authorization Failed for an API Key")
+			log.Warn().Msg("Authorization Failed for an API Key")
 			return "", fmt.Errorf("AUTHFAILED")
 		}
 		return "", err
