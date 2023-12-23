@@ -19,11 +19,53 @@ import (
 )
 
 var (
-	once     sync.Once
-	db       *sql.DB
-	dbConfig DBConfig
+	once     sync.Once // once is used to ensure that the database is initialized only once
+	db       *sql.DB   // db holds the database connection
+	dbConfig DBConfig  // dbConfig holds the database configuration
+
+	// validFields represent the fields that are expected in the incoming data.
+	validFields = []string{
+		"name",
+		"environment",
+		"endpoint",
+		"sourceLanguage",
+		"applicationName",
+		"completionTokens",
+		"promptTokens",
+		"totalTokens",
+		"finishReason",
+		"requestDuration",
+		"usageCost",
+		"model",
+		"prompt",
+		"response",
+		"imageSize",
+		"revisedPrompt",
+		"image",
+		"audioVoice",
+		"finetuneJobId",
+		"finetuneJobStatus",
+	}
 )
 
+// DBConfig holds the database configuration
+type DBConfig struct {
+	DBName          string
+	User            string
+	Password        string
+	Host            string
+	Port            string
+	SSLMode         string
+	DataTableName   string
+	ApiKeyTableName string
+}
+
+// PingDB attempts to ping the database to check if it's alive.
+func PingDB() error {
+	return db.Ping()
+}
+
+// getCreateAPIKeysTableSQL returns the SQL query to create the API keys table.
 func getCreateAPIKeysTableSQL(tableName string) string {
 	return fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s (
@@ -33,11 +75,12 @@ func getCreateAPIKeysTableSQL(tableName string) string {
 	);`, tableName)
 }
 
+// getCreateDataTableSQL returns the SQL query to create the data table.
 func getCreateDataTableSQL(tableName string) string {
 	return fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s (
 		time TIMESTAMPTZ NOT NULL,
-		orgID VARCHAR(10) NOT NULL,
+		name VARCHAR(10) NOT NULL,
 		environment VARCHAR(50) NOT NULL,
 		endpoint VARCHAR(50) NOT NULL,
 		sourceLanguage VARCHAR(50) NOT NULL,
@@ -60,47 +103,7 @@ func getCreateDataTableSQL(tableName string) string {
 	);`, tableName)
 }
 
-// validFields represent the fields that are expected in the incoming data.
-var validFields = []string{
-	"orgID",
-	"environment",
-	"endpoint",
-	"sourceLanguage",
-	"applicationName",
-	"completionTokens",
-	"promptTokens",
-	"totalTokens",
-	"finishReason",
-	"requestDuration",
-	"usageCost",
-	"model",
-	"prompt",
-	"response",
-	"imageSize",
-	"revisedPrompt",
-	"image",
-	"audioVoice",
-	"finetuneJobId",
-	"finetuneJobStatus",
-}
-
-// DBConfig holds the database configuration
-type DBConfig struct {
-	DBName          string
-	User            string
-	Password        string
-	Host            string
-	Port            string
-	SSLMode         string
-	DataTableName   string
-	ApiKeyTableName string
-}
-
-// PingDB attempts to ping the database to check if it's alive.
-func PingDB() error {
-	return db.Ping()
-}
-
+// tableExists checks if a table exists in the database.
 func tableExists(db *sql.DB, tableName string) (bool, error) {
 	query := `
 		SELECT EXISTS (
@@ -120,6 +123,7 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 	return exists, nil
 }
 
+// createTable creates a table in the database if it doesn't exist.
 func createTable(db *sql.DB, tableName string) error {
 	var createTableSQL string
 	if tableName == dbConfig.ApiKeyTableName {
@@ -162,7 +166,7 @@ func createTable(db *sql.DB, tableName string) error {
 	return nil
 }
 
-// initializeDB() initializes the database connection.
+// initializeDB initializes connection to the database.
 func initializeDB() error {
 	var dbErr error
 	once.Do(func() {
@@ -216,11 +220,11 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 	}
 
 	// Define the SQL query for data insertion
-	query := fmt.Sprintf("INSERT INTO %s (time, orgID, environment, endpoint, sourceLanguage, applicationName, completionTokens, promptTokens, totalTokens, finishReason, requestDuration, usageCost, model, prompt, response, imageSize, revisedPrompt, image, audioVoice, finetuneJobId, finetuneJobStatus) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)", dbConfig.DataTableName)
+	query := fmt.Sprintf("INSERT INTO %s (time, name, environment, endpoint, sourceLanguage, applicationName, completionTokens, promptTokens, totalTokens, finishReason, requestDuration, usageCost, model, prompt, response, imageSize, revisedPrompt, image, audioVoice, finetuneJobId, finetuneJobStatus) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)", dbConfig.DataTableName)
 
 	// Execute the SQL query
 	_, err := db.Exec(query,
-		data["orgID"],
+		data["name"],
 		data["environment"],
 		data["endpoint"],
 		data["sourceLanguage"],
@@ -250,6 +254,7 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 	return "Data insertion completed", http.StatusCreated
 }
 
+// Init initializes the database connection and creates the required tables.
 func Init() error {
 	// Check for missing required environment variables
 	envKeys := []string{
@@ -279,14 +284,15 @@ func Init() error {
 		return fmt.Errorf("Could not initialize connection to the database: %w", err)
 	}
 
+	// Create the DATA and API keys table if it doesn't exist.
 	log.Info().Msgf("Creating '%s' and '%s' tables in the database if they don't exist", dbConfig.ApiKeyTableName, dbConfig.DataTableName)
+
 	err = createTable(db, dbConfig.ApiKeyTableName)
 	if err != nil {
 		log.Error().Err(err).Msgf("Error creating table %s", dbConfig.ApiKeyTableName)
 		return err
 	}
 
-	// Create the data table if it doesn't exist and convert it to a hypertable.
 	err = createTable(db, dbConfig.DataTableName)
 	if err != nil {
 		log.Error().Err(err).Msgf("Error creating table %s", dbConfig.ApiKeyTableName)
@@ -296,7 +302,6 @@ func Init() error {
 }
 
 // PerformDatabaseInsertion performs the database insertion synchronously.
-// It returns the response message and status code.
 func PerformDatabaseInsertion(data map[string]interface{}) (string, int) {
 	// Call insertDataToDB directly instead of starting a new goroutine.
 	responseMessage, statusCode := insertDataToDB(data)
@@ -380,6 +385,7 @@ func GetAPIKeyForName(existingAPIKey, name string) (string, error) {
 	return apiKey, nil
 }
 
+// DeleteAPIKey deletes an API key for a given name from the database.
 func DeleteAPIKey(existingAPIKey, name string) error {
 	apiKey, err := GetAPIKeyForName(existingAPIKey, name)
 	if err != nil {
