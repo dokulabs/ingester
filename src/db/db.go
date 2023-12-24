@@ -9,7 +9,6 @@ import (
 	"ingester/cost"
 	"ingester/obsPlatform"
 	"net/http"
-	_ "os"
 	"sync"
 
 	_ "github.com/lib/pq"
