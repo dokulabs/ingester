@@ -104,8 +104,11 @@ func main() {
 
 	// Define and start the HTTP server
 	server := &http.Server{
-		Addr:    ":" + cfg.IngesterPort,
-		Handler: r,
+		Addr:         ":" + cfg.IngesterPort,
+		Handler:      r,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  30 * time.Second,
 	}
 
 	// Starts the HTTP server in a goroutine and logs any error upon starting.
