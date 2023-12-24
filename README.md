@@ -1,7 +1,7 @@
 export DB_NAME=postgres
 export DB_USER=admin
 export DB_PASSWORD=DOKU  
-export DB_HOST=68.183.246.32         
+export DB_HOST=144.126.252.247         
 export DB_PORT=5432         
 export DB_SSLMODE=require 
 export DATA_TABLE_NAME=DOKU

@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"ingester/config"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"ingester/utils"
 
 	"github.com/rs/zerolog/log"
 )
@@ -21,24 +19,13 @@ var (
 	grafanaPostUrl        string       // grafanaPostUrl is the URL used to send data to Grafana Loki.
 )
 
-func Init() error {
+func Init(cfg config.Configuration) error {
 	httpClient = &http.Client{Timeout: 5 * time.Second}
-	ObservabilityPlatform = os.Getenv("OBSERVABILITY_PLATFORM")
-	if ObservabilityPlatform == "GRAFANA" {
-		envKeys := []string{
-			"GRAFANA_LOGS_USERNAME",
-			"GRAFANA_ACCESS_TOKEN",
-			"GRAFANA_LOKI_URL",
-		}
+	if cfg.ObservabilityPlatform.GrafanaCloud.LogsURL != "" {
 
-		err := utils.CheckEnvVars(envKeys)
-		if err != nil {
-			return err
-		}
-
-		grafanaLogsUsername := os.Getenv("GRAFANA_LOGS_USERNAME")
-		grafanaAccessToken := os.Getenv("GRAFANA_ACCESS_TOKEN")
-		grafanaLokiUrl := os.Getenv("GRAFANA_LOKI_URL")
+		grafanaLogsUsername := cfg.ObservabilityPlatform.GrafanaCloud.LogsUsername
+		grafanaAccessToken := cfg.ObservabilityPlatform.GrafanaCloud.CloudAccessToken
+		grafanaLokiUrl := cfg.ObservabilityPlatform.GrafanaCloud.LogsURL
 		// Use strings.TrimPrefix to remove the schemes "http://" and "https://"
 		grafanaLokiUrl = strings.TrimPrefix(grafanaLokiUrl, "http://")
 		grafanaLokiUrl = strings.TrimPrefix(grafanaLokiUrl, "https://")

@@ -1,0 +1,33 @@
+ingesterPort: 9044
+
+llmPricing:
+  localFile:
+    path: "/Users/ishanjain/ingester/pricing.json" # Path to local JSON file with LLM Pricing data
+  # Comment out either 'localFile' or 'url' to use only one at a time.
+  #url: "http://example.com/pricing-data.json" # URL to download Pricing data file
+
+dbConfig:
+  name: postgres
+  username: admin
+  password: "DOKU"
+  host: 144.126.252.247
+  port: 5432
+  sslMode: require
+  maxOpenConns: 10
+  maxIdleConns: 10
+  dataTable: DOKU
+  apiKeyTable: APIKEY
+
+observabilityPlatform:
+  enabled: false
+  grafanaCloud:
+    logsUrl: "https://logs-prod-us-central1.grafana.net"
+    logsUsername: "your_loki_username"
+    cloudAccessToken: "your_grafana_cloud_api_token"
+# To add additional platforms, add new sections here with 'enabled' flags.
+# Only one platform should have 'enabled' set to true.
+# Example placeholder for future platforms:
+#otherPlatform:
+#  enabled: false
+#  someUrl: "https://other.example.com"
+#  someApiKey: "your_other_platform_api_key"

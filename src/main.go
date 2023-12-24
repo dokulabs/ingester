@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,9 +12,10 @@ import (
 
 	"ingester/api"
 	"ingester/auth"
+	"ingester/config"
+	"ingester/cost"
 	"ingester/db"
 	"ingester/obsPlatform"
-	"ingester/cost"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
@@ -48,15 +51,21 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Info().Msg("Starting Doku Ingester")
 
-	// Load and validate the application configuration
-	// cfg, err := utils.LoadConfiguration()
-	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("Configuration failed to load")
-	// }
+	// Use flag package to parse the configuration file
+	configFilePath := flag.String("config", "./config.yml", "Path to the Doku Ingester config file")
+	flag.Parse()
+
+	// Load the configuration
+	cfg, err := config.LoadConfiguration(*configFilePath)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to load configuration file")
+		log.Info().Msg("Shutting down server")
+		os.Exit(1)
+	}
 
 	// Initialize the backend database connection with loaded configuration
 	log.Info().Msg("Initializing connection to the backend database")
-	err := db.Init()
+	err = db.Init(*cfg)
 	if err != nil {
 		log.Error().Msg("Unable to initialize connection to the backend database")
 		log.Info().Msg("Shutting down server")
@@ -65,9 +74,9 @@ func main() {
 	log.Info().Msg("Successfully initialized connection to the backend database")
 
 	// Initialize observability platform if configured
-	if os.Getenv("OBSERVABILITY_PLATFORM") != "" {
+	if cfg.ObservabilityPlatform.Enabled == true {
 		log.Info().Msg("Initializing for your Observability Platform")
-		err := obsPlatform.Init()
+		err := obsPlatform.Init(*cfg)
 		if err != nil {
 			log.Error().Msg("Exiting due to error in initializing for your Observability Platform")
 			log.Info().Msg("Shutting down server")
@@ -76,10 +85,10 @@ func main() {
 		log.Info().Msgf("Setup complete for sending data to %s", obsPlatform.ObservabilityPlatform)
 	}
 
-	if os.Getenv("COSTING_JSON_FILE_PATH") != "" {
+	if cfg.LLMPricing.LocalFile.Path != "" {
 		log.Info().Msg("Initializing LLM Pricing Information from JSON file")
 		// Load pricing data from JSON file
-		if err := cost.LoadPricing(os.Getenv("COSTING_JSON_FILE_PATH")); err != nil {
+		if err := cost.LoadPricing(cfg.LLMPricing.LocalFile.Path); err != nil {
 			log.Error().Err(err).Msg("Failed to load LLM pricing information")
 			log.Info().Msg("Shutting down server")
 			os.Exit(1)
@@ -99,24 +108,17 @@ func main() {
 	r.HandleFunc("/api/keys", api.APIKeyHandler).Methods("GET", "POST", "DELETE")
 	r.HandleFunc("/", api.BaseEndpoint).Methods("GET")
 
-	// Get the server's port either from environment variables or use the default value(:9044).
-	port := os.Getenv("HTTP_PORT")
-	if port == "" {
-		log.Warn().Msg("HTTP_PORT environment variable is not set. Using the default port 9044")
-		port = "9044"
-	}
-
 	// Define and start the HTTP server
 	server := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":" + cfg.IngesterPort,
 		Handler: r,
 	}
 
 	// Starts the HTTP server in a goroutine and logs any error upon starting.
 	go func() {
-		log.Info().Msg("Server listening on port " + port)
+		log.Info().Msg("Server listening on port " + cfg.IngesterPort)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("Could not listen on port " + port)
+			log.Fatal().Err(err).Msg("Could not listen on port " + cfg.IngesterPort)
 		}
 	}()
 

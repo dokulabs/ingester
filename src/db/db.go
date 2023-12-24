@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	_ "os"
 	"net/http"
-	"os"
-	"strconv"
 	"sync"
-
+	"ingester/config"
 	"ingester/cost"
 	"ingester/obsPlatform"
-	"ingester/utils"
 
 	_ "github.com/lib/pq"
 	"github.com/rs/zerolog/log"
@@ -21,7 +19,7 @@ import (
 var (
 	once     sync.Once // once is used to ensure that the database is initialized only once
 	db       *sql.DB   // db holds the database connection
-	dbConfig DBConfig  // dbConfig holds the database configuration
+	dbConfig DatabaseConfig  // dbConfig holds the database configuration
 
 	// validFields represent the fields that are expected in the incoming data.
 	validFields = []string{
@@ -49,13 +47,15 @@ var (
 )
 
 // DBConfig holds the database configuration
-type DBConfig struct {
+type DatabaseConfig struct {
 	DBName          string
 	User            string
 	Password        string
 	Host            string
 	Port            string
 	SSLMode         string
+	MaxIdleConns	int
+	MaxOpenConns	int
 	DataTableName   string
 	ApiKeyTableName string
 }
@@ -202,18 +202,8 @@ func initializeDB() error {
 			return
 		}
 
-		// Set maximum open connections and idle connections.
-		maxOpenConns, err := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
-		if err != nil {
-			maxOpenConns = 10
-		}
-		db.SetMaxOpenConns(maxOpenConns)
-
-		maxIdleConns, err := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNS"))
-		if err != nil {
-			maxIdleConns = 5
-		}
-		db.SetMaxIdleConns(maxIdleConns)
+		db.SetMaxOpenConns(dbConfig.MaxOpenConns)
+		db.SetMaxIdleConns(dbConfig.MaxIdleConns)
 	})
 	return dbErr
 }
@@ -269,35 +259,28 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 		// Update the response message and status code for error
 		return "Internal Server Error", http.StatusInternalServerError
 	}
-	
+
 	return "Data insertion completed", http.StatusCreated
 }
 
 // Init initializes the database connection and creates the required tables.
-func Init() error {
-	// Check for missing required environment variables
-	envKeys := []string{
-		"DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST",
-		"DB_PORT", "DB_SSLMODE", "DATA_TABLE_NAME", "APIKEY_TABLE_NAME",
+func Init(cfg config.Configuration) error {
+
+	// Initialize the database configuration
+	dbConfig = DatabaseConfig{
+		DBName:          cfg.DBConfig.DBName,
+		User:            cfg.DBConfig.DBUser,
+		Password:        cfg.DBConfig.DBPassword,
+		Host:            cfg.DBConfig.DBHost,
+		Port:            cfg.DBConfig.DBPort,
+		SSLMode:         cfg.DBConfig.DBSSLMode,
+		MaxIdleConns:    cfg.DBConfig.MaxIdleConns,
+		MaxOpenConns:    cfg.DBConfig.MaxOpenConns,
+		DataTableName:   cfg.DBConfig.DataTableName,
+		ApiKeyTableName: cfg.DBConfig.APIKeyTableName,
 	}
 
-	err := utils.CheckEnvVars(envKeys)
-	if err != nil {
-		return err
-	}
-
-	dbConfig = DBConfig{
-		DBName:          os.Getenv("DB_NAME"),
-		User:            os.Getenv("DB_USER"),
-		Password:        os.Getenv("DB_PASSWORD"),
-		Host:            os.Getenv("DB_HOST"),
-		Port:            os.Getenv("DB_PORT"),
-		SSLMode:         os.Getenv("DB_SSLMODE"),
-		DataTableName:   os.Getenv("DATA_TABLE_NAME"),
-		ApiKeyTableName: os.Getenv("APIKEY_TABLE_NAME"),
-	}
-
-	err = initializeDB()
+	err := initializeDB()
 	if err != nil {
 		log.Error().Err(err).Msg("Error initializing database")
 		return fmt.Errorf("Could not initialize connection to the database: %w", err)
@@ -384,7 +367,7 @@ func GenerateAPIKey(existingAPIKey, name string) (string, error) {
 
 // GetAPIKeyForName retrieves an API key for a given name from the database.
 func GetAPIKeyForName(existingAPIKey, name string) (string, error) {
-	
+
 	// Autheticate the provided API key before proceeding
 	_, err := CheckAPIKey(existingAPIKey)
 	if err != nil {
@@ -410,7 +393,7 @@ func GetAPIKeyForName(existingAPIKey, name string) (string, error) {
 
 // DeleteAPIKey deletes an API key for a given name from the database.
 func DeleteAPIKey(existingAPIKey, name string) error {
-	
+
 	// Autheticate the provided API key before proceeding and check if the API key exists
 	apiKey, err := GetAPIKeyForName(existingAPIKey, name)
 	if err != nil {
