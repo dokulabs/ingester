@@ -2,9 +2,11 @@ package config
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"os"
 	"strconv"
+
+	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v2"
 )
 
 type Configuration struct {
@@ -50,6 +52,24 @@ func validateConfig(cfg *Configuration) error {
 	// Check if both PricingInfo configurations are set.
 	if cfg.PricingInfo.LocalFile.Path != "" && cfg.PricingInfo.URL != "" {
 		return fmt.Errorf("Both LocalFile and URL configurations are defined in PricingInfo; only one is allowed")
+	}
+
+	if cfg.DBConfig.DBPassword == "" {
+		log.Info().Msg("dbConfig.password is not defined, trying to read from environment variable DB_PASSWORD")
+		cfg.DBConfig.DBPassword = os.Getenv("DB_PASSWORD")
+		if cfg.DBConfig.DBPassword  == "" {
+			return fmt.Errorf("DB_PASSWORD environment variable is not set")
+		}
+		log.Info().Msg("dbConfig.password is now set")
+	}
+
+	if cfg.DBConfig.DBUser == "" {
+		log.Info().Msg("dbConfig.username is not defined, trying to read from environment variable DB_PASSWORD")
+		cfg.DBConfig.DBUser = os.Getenv("DB_USERNAME")
+		if cfg.DBConfig.DBUser  == "" {
+			return fmt.Errorf("DB_USERNAME environment variable is not set")
+		}
+		log.Info().Msg("dbConfig.username is now set")
 	}
 
 	return nil
