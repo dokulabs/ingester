@@ -3,9 +3,9 @@ package cost
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"net/http"
 	"io"
+	"net/http"
+	"os"
 )
 
 var Pricing PricingModel
@@ -66,6 +66,16 @@ func fetchJSONFromURL(url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
+// fetchJSONFromFile is a new function for fetching JSON content from a URL.
+func fetchJSONFromFile(path string) ([]byte, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to fetch JSON content from file '%s'", path)
+	}
+
+	return content, nil
+}
+
 // LoadPricing loads the pricing information from the given file.
 func LoadPricing(path, url string) error {
 	var content []byte
@@ -73,14 +83,14 @@ func LoadPricing(path, url string) error {
 
 	if path != "" && url == "" {
 		// Load JSON from Local file
-		content, err = os.ReadFile(path)
+		content, err = fetchJSONFromFile(path)
 	} else if url != "" && path == "" {
 		// Fetch JSON from URL
 		content, err = fetchJSONFromURL(url)
 	}
 
 	if err != nil {
-		return fmt.Errorf("Failed to load pricing file: %w", err)
+		return err
 	}
 
 	if err = json.Unmarshal(content, &Pricing); err != nil {

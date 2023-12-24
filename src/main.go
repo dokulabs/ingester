@@ -19,6 +19,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/common-nighthawk/go-figure"
 )
 
 func waitForShutdown(server *http.Server) {
@@ -46,6 +47,7 @@ func waitForShutdown(server *http.Server) {
 // initializes the database and observability platforms, starts the HTTP server,
 // and handles graceful shutdown.
 func main() {
+	figure.NewColorFigure("DOKU Ingester", "", "yellow", true).Print()
 	// Configure global settings for the zerolog logger
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Info().Msg("Starting Doku Ingester")
@@ -57,18 +59,27 @@ func main() {
 	// Load the configuration
 	cfg, err := config.LoadConfiguration(*configFilePath)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to load configuration file")
-		log.Info().Msg("Shutting down server")
-		os.Exit(1)
+		log.Fatal().Err(err).Msg("Failed to load configuration file")
 	}
+
+	// Load pricing information, either from a local file or from a URL
+	if cfg.PricingInfo.URL != "" {
+		log.Info().Msgf("Initializing LLM Pricing Information from URL '%s'", cfg.PricingInfo.URL)
+		err = cost.LoadPricing("", cfg.PricingInfo.URL)
+	} else if cfg.PricingInfo.LocalFile.Path != "" {
+		log.Info().Msgf("Initializing LLM Pricing Information from local file '%s", cfg.PricingInfo.LocalFile.Path)
+		err = cost.LoadPricing(cfg.PricingInfo.LocalFile.Path, "")
+	}
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load LLM pricing information")
+	}
+	log.Info().Msg("Successfully initialized LLM pricing information")
 
 	// Initialize the backend database connection with loaded configuration
 	log.Info().Msg("Initializing connection to the backend database")
 	err = db.Init(*cfg)
 	if err != nil {
-		log.Error().Msg("Unable to initialize connection to the backend database")
-		log.Info().Msg("Shutting down server")
-		os.Exit(1)
+		log.Fatal().Msg("Unable to initialize connection to the backend database")
 	}
 	log.Info().Msg("Successfully initialized connection to the backend database")
 
@@ -77,26 +88,11 @@ func main() {
 		log.Info().Msg("Initializing for your Observability Platform")
 		err := obsPlatform.Init(*cfg)
 		if err != nil {
-			log.Error().Msg("Exiting due to error in initializing for your Observability Platform")
-			log.Info().Msg("Shutting down server")
-			os.Exit(1)
+			log.Fatal().Msg("Exiting due to error in initializing for your Observability Platform")
 		}
 		log.Info().Msgf("Setup complete for sending data to %s", obsPlatform.ObservabilityPlatform)
 	}
 
-	// Load pricing information, either from a local file or from a URL
-	if cfg.LLMPricing.URL != "" {
-		log.Info().Msgf("Initializing LLM Pricing Information from URL '%s'", cfg.LLMPricing.URL)
-		err = cost.LoadPricing("", cfg.LLMPricing.URL)
-	} else if cfg.LLMPricing.LocalFile.Path != "" {
-		log.Info().Msg("Initializing LLM Pricing Information from local file")
-		err = cost.LoadPricing(cfg.LLMPricing.LocalFile.Path, "")
-	}
-
-	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to load LLM pricing information")
-	}
-	
 	// Cache eviction setup for the authentication process
 	auth.InitializeCacheEviction()
 

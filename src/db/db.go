@@ -5,21 +5,21 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	_ "os"
-	"net/http"
-	"sync"
 	"ingester/config"
 	"ingester/cost"
 	"ingester/obsPlatform"
+	"net/http"
+	_ "os"
+	"sync"
 
 	_ "github.com/lib/pq"
 	"github.com/rs/zerolog/log"
 )
 
 var (
-	once     sync.Once // once is used to ensure that the database is initialized only once
-	db       *sql.DB   // db holds the database connection
-	dbConfig DatabaseConfig  // dbConfig holds the database configuration
+	once     sync.Once      // once is used to ensure that the database is initialized only once
+	db       *sql.DB        // db holds the database connection
+	dbConfig DatabaseConfig // dbConfig holds the database configuration
 
 	// validFields represent the fields that are expected in the incoming data.
 	validFields = []string{
@@ -54,8 +54,8 @@ type DatabaseConfig struct {
 	Host            string
 	Port            string
 	SSLMode         string
-	MaxIdleConns	int
-	MaxOpenConns	int
+	MaxIdleConns    int
+	MaxOpenConns    int
 	DataTableName   string
 	ApiKeyTableName string
 }
@@ -160,6 +160,7 @@ func createTable(db *sql.DB, tableName string) error {
 		if err != nil {
 			return fmt.Errorf("Error creating table %s: %w", tableName, err)
 		}
+		log.Info().Msgf("Table '%s' created in the database", tableName)
 
 		if tableName == dbConfig.ApiKeyTableName {
 			createIndexSQL := fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_api_key ON %s (api_key);", tableName)
@@ -167,7 +168,7 @@ func createTable(db *sql.DB, tableName string) error {
 			if err != nil {
 				return fmt.Errorf("Error creating index on 'api_key' column: %w", err)
 			}
-			log.Info().Msg("Index on 'api_key' column checked/created.")
+			log.Info().Msgf("Index on 'api_key' column checked/created in table '%s'", tableName)
 		}
 
 		// If the table to create is the data table, convert it into a hypertable
@@ -176,9 +177,8 @@ func createTable(db *sql.DB, tableName string) error {
 			if err != nil {
 				return fmt.Errorf("Error creating hypertable: %w", err)
 			}
+			log.Info().Msgf("Table '%s' converted to a Hypertable", tableName)
 		}
-
-		log.Info().Msgf("Table '%s' created in the database", tableName)
 	} else {
 		log.Info().Msgf("Table '%s' already exists in the database", tableName)
 	}

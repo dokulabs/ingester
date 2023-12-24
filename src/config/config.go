@@ -1,20 +1,21 @@
 package config
 
 import (
-	"gopkg.in/yaml.v2"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Configuration struct {
 	IngesterPort string `yaml:"ingesterPort"`
-	LLMPricing   struct {
+	PricingInfo  struct {
 		LocalFile struct {
 			Path string `yaml:"path"`
 		} `yaml:"localFile"`
 		URL string `yaml:"url"`
-	} `yaml:"llmPricing"`
+	} `yaml:"pricingInfo"`
 	DBConfig struct {
 		DBName          string `yaml:"name"`
 		DBUser          string `yaml:"username"`
@@ -42,15 +43,15 @@ func validateConfig(cfg *Configuration) error {
 		return fmt.Errorf("Ingester Port is not defined")
 	}
 
-	// Check if at least one LLMPricing configuration is set.
-    if cfg.LLMPricing.LocalFile.Path == "" && cfg.LLMPricing.URL == "" {
-        return fmt.Errorf("LLMPricing configuration is not defined")
-    }
+	// Check if at least one PricingInfo configuration is set.
+	if cfg.PricingInfo.LocalFile.Path == "" && cfg.PricingInfo.URL == "" {
+		return fmt.Errorf("PricingInfo configuration is not defined")
+	}
 
-    // Check if both LLMPricing configurations are set.
-    if cfg.LLMPricing.LocalFile.Path != "" && cfg.LLMPricing.URL != "" {
-        return fmt.Errorf("Both LocalFile and URL LLMPricing configurations are defined; only one is allowed")
-    }
+	// Check if both PricingInfo configurations are set.
+	if cfg.PricingInfo.LocalFile.Path != "" && cfg.PricingInfo.URL != "" {
+		return fmt.Errorf("Both LocalFile and URL configurations are defined in PricingInfo; only one is allowed")
+	}
 
 	return nil
 }
