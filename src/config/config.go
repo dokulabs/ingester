@@ -55,19 +55,19 @@ func validateConfig(cfg *Configuration) error {
 	}
 
 	if cfg.DBConfig.DBPassword == "" {
-		log.Info().Msg("dbConfig.password is not defined, trying to read from environment variable DB_PASSWORD")
+		log.Info().Msg("'dbConfig.password' is not defined, trying to read from environment variable 'DB_PASSWORD'")
 		cfg.DBConfig.DBPassword = os.Getenv("DB_PASSWORD")
 		if cfg.DBConfig.DBPassword  == "" {
-			return fmt.Errorf("DB_PASSWORD environment variable is not set")
+			return fmt.Errorf("'DB_PASSWORD' environment variable is not set and 'dbConfig.password' is not defined in configuration")
 		}
 		log.Info().Msg("dbConfig.password is now set")
 	}
 
 	if cfg.DBConfig.DBUser == "" {
-		log.Info().Msg("dbConfig.username is not defined, trying to read from environment variable DB_PASSWORD")
+		log.Info().Msg("'dbConfig.username' is not defined, trying to read from environment variable 'DB_USERNAME")
 		cfg.DBConfig.DBUser = os.Getenv("DB_USERNAME")
 		if cfg.DBConfig.DBUser  == "" {
-			return fmt.Errorf("DB_USERNAME environment variable is not set")
+			return fmt.Errorf("'DB_USERNAME' environment variable is not set and 'dbConfig.username' is not defined in configuration")
 		}
 		log.Info().Msg("dbConfig.username is now set")
 	}
