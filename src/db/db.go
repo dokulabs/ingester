@@ -401,7 +401,6 @@ func DeleteAPIKey(existingAPIKey, name string) error {
 			return err
 		}
 		if err.Error() == "NOTFOUND" {
-			log.Warn().Msgf("API Key with the name '%s' currently not found in the database", name)
 			return err
 		}
 		return err
