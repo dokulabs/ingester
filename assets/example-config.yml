@@ -1,11 +1,12 @@
 ingesterPort: 9044
 
+# Comment out either 'localFile' or 'url' to use only one at a time.  
 pricingInfo:
-  # Comment out either 'localFile' or 'url' to use only one at a time.  
-  localFile:
-    path: "../assets/pricing.json" # Path to local JSON file with LLM Pricing data
-  # url: "https://raw.githubusercontent.com/dokulabs/ingester/main/assets/pricing.json" # URL to download Pricing data file
+  # localFile:
+  #   path: "../assets/pricing.json" # Path to local JSON file with LLM Pricing data
+  url: "https://raw.githubusercontent.com/dokulabs/ingester/main/assets/pricing.json" # URL to download Pricing data file
 
+# Configuration for the Doku Backend Database (TimescaleDB)
 dbConfig:
   name: postgres
   username: admin
@@ -18,16 +19,10 @@ dbConfig:
   dataTable: DOKU
   apiKeyTable: APIKEY
 
+# Configure Platform to export LLM Observability Data from Doku
 observabilityPlatform:
   enabled: false
   grafanaCloud:
     logsUrl: "https://logs-prod-us-central1.grafana.net"
     logsUsername: "your_loki_username"
     cloudAccessToken: "your_grafana_cloud_api_token"
-# To add additional platforms, add new sections here with 'enabled' flags.
-# Only one platform should have 'enabled' set to true.
-# Example placeholder for future platforms:
-#otherPlatform:
-#  enabled: false
-#  someUrl: "https://other.example.com"
-#  someApiKey: "your_other_platform_api_key"
