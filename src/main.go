@@ -16,10 +16,10 @@ import (
 	"ingester/db"
 	"ingester/obsPlatform"
 
+	"github.com/common-nighthawk/go-figure"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/common-nighthawk/go-figure"
 )
 
 func waitForShutdown(server *http.Server) {

@@ -82,10 +82,10 @@ func LoadPricing(path, url string) error {
 	var err error
 
 	switch {
-		case path != "":
-			content, err = fetchJSONFromFile(path)
-		case url != "":
-			content, err = fetchJSONFromURL(url)
+	case path != "":
+		content, err = fetchJSONFromFile(path)
+	case url != "":
+		content, err = fetchJSONFromURL(url)
 	}
 	if err != nil {
 		return err
@@ -106,8 +106,8 @@ func LoadPricing(path, url string) error {
 func CalculateEmbeddingsCost(promptTokens float64, model string) (float64, error) {
 	price, ok := Pricing.Embeddings[model]
 	if !ok {
-        return 0, nil
-    }
+		return 0, nil
+	}
 	return (promptTokens / 1000) * price, nil
 }
 
@@ -115,16 +115,16 @@ func CalculateEmbeddingsCost(promptTokens float64, model string) (float64, error
 func CalculateImageCost(model, imageSize, quality string) (float64, error) {
 	models, ok := Pricing.Images[model]
 	if !ok {
-        return 0, nil
-    }
+		return 0, nil
+	}
 	qualities, ok := models[quality]
 	if !ok {
-        return 0, nil
-    }
+		return 0, nil
+	}
 	price, ok := qualities[imageSize]
 	if !ok {
-        return 0, nil
-    }
+		return 0, nil
+	}
 
 	return price, nil
 }
@@ -133,7 +133,7 @@ func CalculateImageCost(model, imageSize, quality string) (float64, error) {
 func CalculateChatCost(promptTokens, completionTokens float64, model string) (float64, error) {
 	chatModel, ok := Pricing.Chat[model]
 	if !ok {
-        return 0, nil
-    }
+		return 0, nil
+	}
 	return ((promptTokens / 1000) * chatModel.PromptPrice) + ((completionTokens / 1000) * chatModel.CompletionPrice), nil
 }
