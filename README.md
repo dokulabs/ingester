@@ -1,11 +1,3 @@
-export DB_NAME=postgres
-export DB_USER=admin
-export DB_PASSWORD=DOKU  
-export DB_HOST=144.126.252.247         
-export DB_PORT=5432         
-export DB_SSLMODE=require 
-export DATA_TABLE_NAME=DOKU
-export APIKEY_TABLE_NAME=APIKEY
 # Doku Ingester
 [![Doku Ingester](https://img.shields.io/badge/Doku_Ingester-orange)](https://github.com/dokulabs/ingester)
 [![Ingester Version](https://img.shields.io/github/tag/dokulabs/ingester.svg?&label=Version)](https://github.com/dokulabs/ingester/tags)
