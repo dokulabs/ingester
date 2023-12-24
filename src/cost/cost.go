@@ -81,14 +81,12 @@ func LoadPricing(path, url string) error {
 	var content []byte
 	var err error
 
-	if path != "" && url == "" {
-		// Load JSON from Local file
-		content, err = fetchJSONFromFile(path)
-	} else if url != "" && path == "" {
-		// Fetch JSON from URL
-		content, err = fetchJSONFromURL(url)
+	switch {
+		case path != "":
+			content, err = fetchJSONFromFile(path)
+		case url != "":
+			content, err = fetchJSONFromURL(url)
 	}
-
 	if err != nil {
 		return err
 	}
@@ -106,21 +104,36 @@ func LoadPricing(path, url string) error {
 
 // calculateEmbeddingsCost calculates the cost for embeddings based on the model and prompt tokens.
 func CalculateEmbeddingsCost(promptTokens float64, model string) (float64, error) {
-	price, _ := Pricing.Embeddings[model]
+	price, ok := Pricing.Embeddings[model]
+	if !ok {
+        return 0, nil
+    }
 	return (promptTokens / 1000) * price, nil
 }
 
 // calculateImageCost calculates the cost for images based on the model, image size, and quality.
 func CalculateImageCost(model, imageSize, quality string) (float64, error) {
-	models, _ := Pricing.Images[model]
-	qualities, _ := models[quality]
-	price, _ := qualities[imageSize]
+	models, ok := Pricing.Images[model]
+	if !ok {
+        return 0, nil
+    }
+	qualities, ok := models[quality]
+	if !ok {
+        return 0, nil
+    }
+	price, ok := qualities[imageSize]
+	if !ok {
+        return 0, nil
+    }
+
 	return price, nil
 }
 
 // calculateChatCost calculates the cost for chat based on the model, prompt tokens, and completion tokens.
 func CalculateChatCost(promptTokens, completionTokens float64, model string) (float64, error) {
-	chatModel, _ := Pricing.Chat[model]
-	cost := ((promptTokens / 1000) * chatModel.PromptPrice) + ((completionTokens / 1000) * chatModel.CompletionPrice)
-	return cost, nil
+	chatModel, ok := Pricing.Chat[model]
+	if !ok {
+        return 0, nil
+    }
+	return ((promptTokens / 1000) * chatModel.PromptPrice) + ((completionTokens / 1000) * chatModel.CompletionPrice), nil
 }
