@@ -2,7 +2,7 @@ ingesterPort: 9044
 
 llmPricing:
   localFile:
-    path: "/Users/ishanjain/ingester/pricing.json" # Path to local JSON file with LLM Pricing data
+    path: "../assets/pricing.json" # Path to local JSON file with LLM Pricing data
   # Comment out either 'localFile' or 'url' to use only one at a time.
   #url: "http://example.com/pricing-data.json" # URL to download Pricing data file
 

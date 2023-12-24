@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"net/http"
+	"io"
 )
 
 var Pricing PricingModel
@@ -49,18 +51,42 @@ func validatePricingData(pricingModel PricingModel) error {
 	return nil
 }
 
-// LoadPricing loads the pricing information from the given file.
-func LoadPricing(filename string) error {
-	bytes, err := os.ReadFile(filename)
+// fetchJSONFromURL is a new function for fetching JSON content from a URL.
+func fetchJSONFromURL(url string) ([]byte, error) {
+	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("Failed to read costing file: %w", err)
+		return nil, fmt.Errorf("Failed to make request to URL %s", url)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Failed to fetch JSON content from URL %s", url)
 	}
 
-	if err = json.Unmarshal(bytes, &Pricing); err != nil {
+	return io.ReadAll(resp.Body)
+}
+
+// LoadPricing loads the pricing information from the given file.
+func LoadPricing(path, url string) error {
+	var content []byte
+	var err error
+
+	if path != "" && url == "" {
+		// Load JSON from Local file
+		content, err = os.ReadFile(path)
+	} else if url != "" && path == "" {
+		// Fetch JSON from URL
+		content, err = fetchJSONFromURL(url)
+	}
+
+	if err != nil {
+		return fmt.Errorf("Failed to load pricing file: %w", err)
+	}
+
+	if err = json.Unmarshal(content, &Pricing); err != nil {
 		return fmt.Errorf("Failed to unmarshal costing JSON: %w", err)
 	}
 
-	// Perform validation after the PricingModel has been populated.
 	if err = validatePricingData(Pricing); err != nil {
 		return err
 	}

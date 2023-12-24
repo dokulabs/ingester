@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -85,20 +84,19 @@ func main() {
 		log.Info().Msgf("Setup complete for sending data to %s", obsPlatform.ObservabilityPlatform)
 	}
 
-	if cfg.LLMPricing.LocalFile.Path != "" {
-		log.Info().Msg("Initializing LLM Pricing Information from JSON file")
-		// Load pricing data from JSON file
-		if err := cost.LoadPricing(cfg.LLMPricing.LocalFile.Path); err != nil {
-			log.Error().Err(err).Msg("Failed to load LLM pricing information")
-			log.Info().Msg("Shutting down server")
-			os.Exit(1)
-		}
-		log.Info().Msg("Successfully initialized LLM Pricing Information from JSON file")
-	} else {
-		log.Error().Msg("COSTING_JSON_FILE_PATH environment variable is not set")
-		log.Info().Msg("Shutting down server")
-		os.Exit(1)
+	// Load pricing information, either from a local file or from a URL
+	if cfg.LLMPricing.URL != "" {
+		log.Info().Msgf("Initializing LLM Pricing Information from URL '%s'", cfg.LLMPricing.URL)
+		err = cost.LoadPricing("", cfg.LLMPricing.URL)
+	} else if cfg.LLMPricing.LocalFile.Path != "" {
+		log.Info().Msg("Initializing LLM Pricing Information from local file")
+		err = cost.LoadPricing(cfg.LLMPricing.LocalFile.Path, "")
 	}
+
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load LLM pricing information")
+	}
+	
 	// Cache eviction setup for the authentication process
 	auth.InitializeCacheEviction()
 
