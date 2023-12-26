@@ -1,0 +1,53 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Publish binaries
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./src
+    
+    strategy:
+      matrix:
+        platform:
+          - {os: "linux", arch: "amd64"}
+          - {os: "linux", arch: "arm64"}
+          - {os: "linux", arch: "arm"}
+          - {os: "darwin", arch: "amd64"}
+          - {os: "darwin", arch: "arm64"}
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-go@v4
+      with:
+        go-version: '1.21.5'
+
+    - name: Build package for ${{ matrix.platform.os }}-${{ matrix.platform.arch }}
+      run: env GOOS=${{ matrix.platform.os }} GOARCH=${{ matrix.platform.arch }} go build -o ingester-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
+
+    - name: Upload binaries to release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: src/ingester-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
+        asset_name: ingester-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
+        tag: 0.0.2
+        overwrite: true
