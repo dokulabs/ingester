@@ -1,8 +1,9 @@
 # Doku Ingester
-[![Doku Ingester](https://img.shields.io/badge/Doku_Ingester-orange)](https://github.com/dokulabs/ingester)
+[![Doku](https://img.shields.io/badge/Doku-orange)](https://github.com/dokulabs/doku)
+[![License](https://img.shields.io/github/license/dokulabs/doku?label=license&logo=github&color=f80&logoColor=fff%22%20alt=%22License)](https://github.com/dokulabs/doku/blob/main/LICENSE)
 [![Ingester Version](https://img.shields.io/github/tag/dokulabs/ingester.svg?&label=Version)](https://github.com/dokulabs/ingester/tags)
-[![GitHub Last Commit](https://img.shields.io/github/last-commit/dokulabs/ingester)](https://github.com/dokulabs/ingester/tags)
-[![GitHub Contributors](https://img.shields.io/github/contributors/dokulabs/ingester)](https://github.com/dokulabs/ingester/tags)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/dokulabs/ingester)](https://github.com/dokulabs/ingester/pulse)
+[![GitHub Contributors](https://img.shields.io/github/contributors/dokulabs/ingester)](https://github.com/dokulabs/ingester/graphs/contributors)
 
 [![Tests](https://github.com/dokulabs/ingester/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/dokulabs/ingester/actions/workflows/tests.yml)
 [![CodeQL](https://github.com/dokulabs/ingester/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/dokulabs/ingester/actions/workflows/github-code-scanning/codeql)
