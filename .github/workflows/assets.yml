@@ -49,5 +49,5 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: src/ingester-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
         asset_name: ingester-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
-        tag: 0.0.2
+        tag: 0.0.1
         overwrite: true
