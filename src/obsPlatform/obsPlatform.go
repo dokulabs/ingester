@@ -2,13 +2,13 @@ package obsPlatform
 
 import (
 	"bytes"
-	_ "encoding/json"
 	"fmt"
 	"ingester/config"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -37,21 +37,27 @@ func Init(cfg config.Configuration) error {
 func SendToPlatform(data map[string]interface{}) {
 	if grafanaLokiUrl != "" {
 		if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "anthropic.completions" {
-			if data["response"] != nil {
+			if data["response"] != nil && data["completionTokens"] != nil {
 				metrics := []string{
-					fmt.Sprintf(`doku_llm,environment=%v,applicationName=%v,source=%v,model=%v completionTokens=%v`, data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["completionTokens"]),
-					fmt.Sprintf(`doku_llm,environment=%v,applicationName=%v,source=%v,model=%v promptTokens=%v`, data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["promptTokens"]),
-					fmt.Sprintf(`doku_llm,environment=%v,applicationName=%v,source=%v,model=%v totalTokens=%v`, data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["totalTokens"]),
-					fmt.Sprintf(`doku_llm,environment=%v,applicationName=%v,source=%v,model=%v requestDuration=%v`, data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["requestDuration"]),
-					fmt.Sprintf(`doku_llm,environment=%v,applicationName=%v,source=%v,model=%v usageCost=%v`, data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["usageCost"]),
+					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v completionTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["completionTokens"]),
+					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v promptTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["promptTokens"]),
+					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v totalTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["totalTokens"]),
+					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v requestDuration=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["requestDuration"]),
+					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v usageCost=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["usageCost"]),
 				}
 				var metricsBody = []byte(strings.Join(metrics, "\n"))
 				authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-				sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+				err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+				if err != nil {
+					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
+				}
 
-				logs := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"prompt\": \"%v\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["prompt"], strconv.FormatInt(time.Now().UnixNano(), 10), data["response"]))
+				logs := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"prompt\": \"%v\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["prompt"], strconv.FormatInt(time.Now().UnixNano(), 10), data["response"]))
 				authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
-				sendTelemetry(logs, authHeader, grafanaLokiUrl, "POST")
+				err = sendTelemetry(logs, authHeader, grafanaLokiUrl, "POST")
+				if err != nil {
+					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
+				}
 			}
 		}
 	} else {
@@ -59,22 +65,26 @@ func SendToPlatform(data map[string]interface{}) {
 	}
 }
 
-func sendTelemetry(telemetryData []byte, authHeader string, url string, requestType string) {
+func sendTelemetry(telemetryData []byte, authHeader string, url string, requestType string) error {
 
 	req, err := http.NewRequest(requestType, url, bytes.NewBuffer(telemetryData))
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("Error creating request")
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", authHeader)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
-		panic(err)
-	}
+		return fmt.Errorf("Error sending request to %v", url)
+	} else if resp.StatusCode == 404 {
+		return fmt.Errorf("Provided URL %v is not valid", url)
+	} else if resp.StatusCode == 401 {
+		return fmt.Errorf("Provided credentials are not valid")
+	} 
+
 	defer resp.Body.Close()
 
-	fmt.Println("Response Status:", resp.Status)
-
+	log.Info().Msgf("Successfully exported data to %v", url)
+	return nil
 }
