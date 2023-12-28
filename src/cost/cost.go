@@ -53,7 +53,16 @@ func validatePricingData(pricingModel PricingModel) error {
 
 // fetchJSONFromURL is a new function for fetching JSON content from a URL.
 func fetchJSONFromURL(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	maxRetries := 5
+	var resp *http.Response
+	var err error
+	for i := 0; i < maxRetries; i++ {
+		resp, err = http.Get(url)
+		if err == nil {
+			break
+		}
+	}
+		
 	if err != nil {
 		return nil, fmt.Errorf("Failed to make request to URL %s", url)
 	}

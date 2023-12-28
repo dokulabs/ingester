@@ -11,7 +11,7 @@ dbConfig:
   name: postgres
   username: admin
   password: "DOKU"
-  host: 144.126.252.247
+  host: 174.138.123.61
   port: 5432
   sslMode: require
   maxOpenConns: 15
@@ -21,10 +21,10 @@ dbConfig:
 
 # Configure Platform to export LLM Observability Data from Doku
 observabilityPlatform:
-  enabled: false
+  enabled: true
   grafanaCloud:
-    promUrl:
-    promUsername: 
-    lokiUrl: "https://logs-prod-us-central1.grafana.net"
-    lokiUsername: "your_loki_username"
+    promUrl: "https://influx-prod-13-prod-us-east-0.grafana.net/api/v1/push/influx/write"
+    promUsername: "1350787"
+    lokiUrl: "https://logs-prod-006.grafana.net/loki/api/v1/push"
+    lokiUsername: "774423"
     accessToken: "your_grafana_cloud_api_token"
