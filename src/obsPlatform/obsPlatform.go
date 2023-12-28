@@ -52,7 +52,7 @@ func SendToPlatform(data map[string]interface{}) {
 				logs := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"prompt\": \"%v\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["prompt"], strconv.FormatInt(time.Now().UnixNano(), 10), data["response"]))
 				authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername,grafanaAccessToken)
 				sendTelemetry(logs, authHeader, grafanaLokiUrl, "POST")
-			}
+			} 
 		}
 
 	case "Datadog":
