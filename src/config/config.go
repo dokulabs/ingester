@@ -32,9 +32,11 @@ type Configuration struct {
 	ObservabilityPlatform struct {
 		Enabled      bool `yaml:"enabled"`
 		GrafanaCloud struct {
-			LogsURL          string `yaml:"logsUrl"`
-			LogsUsername     string `yaml:"logsUsername"`
-			CloudAccessToken string `yaml:"cloudAccessToken"`
+			PromURL      string `yaml:"promUrl"`
+			PromUsername string `yaml:"promUsername"`
+			LokiURL      string `yaml:"lokiUrl"`
+			LokiUsername string `yaml:"lokiUsername"`
+			AccessToken  string `yaml:"accessToken"`
 		} `yaml:"grafanaCloud"`
 	} `yaml:"observabilityPlatform"`
 }

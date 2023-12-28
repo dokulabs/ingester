@@ -23,6 +23,8 @@ dbConfig:
 observabilityPlatform:
   enabled: false
   grafanaCloud:
-    logsUrl: "https://logs-prod-us-central1.grafana.net"
-    logsUsername: "your_loki_username"
-    cloudAccessToken: "your_grafana_cloud_api_token"
+    promUrl:
+    promUsername: 
+    lokiUrl: "https://logs-prod-us-central1.grafana.net"
+    lokiUsername: "your_loki_username"
+    accessToken: "your_grafana_cloud_api_token"
