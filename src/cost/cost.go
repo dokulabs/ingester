@@ -62,7 +62,7 @@ func fetchJSONFromURL(url string) ([]byte, error) {
 			break
 		}
 	}
-		
+
 	if err != nil {
 		return nil, fmt.Errorf("Failed to make request to URL %s", url)
 	}

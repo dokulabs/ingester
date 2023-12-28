@@ -219,7 +219,7 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 	} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
 		data["usageCost"], _ = cost.CalculateImageCost(data["model"].(string), data["imageSize"].(string), data["imageQuality"].(string))
 	}
-	
+
 	// Fill missing fields with nil
 	for _, field := range validFields {
 		if _, exists := data[field]; !exists {
