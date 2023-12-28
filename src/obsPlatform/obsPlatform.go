@@ -2,6 +2,7 @@ package obsPlatform
 
 import (
 	"bytes"
+	_ "encoding/json"
 	"fmt"
 	"ingester/config"
 	"net/http"
@@ -34,8 +35,7 @@ func Init(cfg config.Configuration) error {
 
 // SendToPlatform sends observability data to the appropriate platform.
 func SendToPlatform(data map[string]interface{}) {
-	switch ObservabilityPlatform {
-	case "GRAFANA":
+	if grafanaLokiUrl != "" {
 		if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "anthropic.completions" {
 			if data["response"] != nil {
 				metrics := []string{
@@ -54,15 +54,8 @@ func SendToPlatform(data map[string]interface{}) {
 				sendTelemetry(logs, authHeader, grafanaLokiUrl, "POST")
 			}
 		}
-
-	case "Datadog":
-		fmt.Println("DataDog Observability Platform")
-	case "New Relic":
-		fmt.Println("New Relic Observability Platform")
-	case "Dynatrace":
-		fmt.Println("Dynatrace Observability Platform")
-	default:
-		fmt.Println("Unknown Observability Platform")
+	} else {
+		fmt.Println("No Observability Platform configured.")
 	}
 }
 

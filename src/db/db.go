@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"ingester/config"
 	"ingester/cost"
-	"ingester/obsPlatform"
+	_ "ingester/obsPlatform"
 	"net/http"
 	"sync"
 
@@ -218,14 +218,13 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 		data["usageCost"], _ = cost.CalculateImageCost(data["model"].(string), data["imageSize"].(string), data["imageQuality"].(string))
 	}
 
+	// go obsPlatform.SendToPlatform(data)
 	// Fill missing fields with nil
 	for _, field := range validFields {
 		if _, exists := data[field]; !exists {
 			data[field] = nil
 		}
 	}
-
-	go obsPlatform.SendToPlatform(data)
 
 	// Define the SQL query for data insertion
 	query := fmt.Sprintf("INSERT INTO %s (time, name, environment, endpoint, sourceLanguage, applicationName, completionTokens, promptTokens, totalTokens, finishReason, requestDuration, usageCost, model, prompt, response, imageSize, revisedPrompt, image, audioVoice, finetuneJobId, finetuneJobStatus) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)", dbConfig.DataTableName)
