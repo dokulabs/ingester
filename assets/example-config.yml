@@ -11,7 +11,7 @@ dbConfig:
   name: postgres
   username: admin
   password: "DOKU"
-  host: 144.126.252.247
+  host: 174.138.123.61
   port: 5432
   sslMode: require
   maxOpenConns: 15
