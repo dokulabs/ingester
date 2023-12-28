@@ -13,18 +13,18 @@ import (
 var (
 	ObservabilityPlatform string       // ObservabilityPlatform contains the information on the platform in use.
 	httpClient            *http.Client // httpClient is the HTTP client used to send data to the Observability Platform.
-	grafanaPromUrl  string       // grafanaPrometheusUrl is the URL used to send data to Grafana Prometheus.
-	grafanaPromUsername string       // grafanaPrometheusUsername is the username used to send data to Grafana Prometheus.
-	grafanaLokiUrl    string       // grafanaPostUrl is the URL used to send data to Grafana Loki.
-	grafanaLokiUsername string       // grafanaLokiUsername is the username used to send data to Grafana Loki.
-	grafanaAccessToken string       // grafanaAccessToken is the access token used to send data to Grafana.
+	grafanaPromUrl        string       // grafanaPrometheusUrl is the URL used to send data to Grafana Prometheus.
+	grafanaPromUsername   string       // grafanaPrometheusUsername is the username used to send data to Grafana Prometheus.
+	grafanaLokiUrl        string       // grafanaPostUrl is the URL used to send data to Grafana Loki.
+	grafanaLokiUsername   string       // grafanaLokiUsername is the username used to send data to Grafana Loki.
+	grafanaAccessToken    string       // grafanaAccessToken is the access token used to send data to Grafana.
 )
 
 func Init(cfg config.Configuration) error {
 	httpClient = &http.Client{Timeout: 5 * time.Second}
 	if cfg.ObservabilityPlatform.GrafanaCloud.LokiURL != "" {
 		grafanaPromUrl = cfg.ObservabilityPlatform.GrafanaCloud.PromURL
-		grafanaPromUsername =  cfg.ObservabilityPlatform.GrafanaCloud.PromUsername
+		grafanaPromUsername = cfg.ObservabilityPlatform.GrafanaCloud.PromUsername
 		grafanaLokiUrl = cfg.ObservabilityPlatform.GrafanaCloud.LokiURL
 		grafanaLokiUsername = cfg.ObservabilityPlatform.GrafanaCloud.LokiUsername
 		grafanaAccessToken = cfg.ObservabilityPlatform.GrafanaCloud.AccessToken
@@ -46,13 +46,13 @@ func SendToPlatform(data map[string]interface{}) {
 					fmt.Sprintf(`doku_llm,environment=%v,applicationName=%v,source=%v,model=%v usageCost=%v`, data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["usageCost"]),
 				}
 				var metricsBody = []byte(strings.Join(metrics, "\n"))
-				authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername,grafanaAccessToken)
+				authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
 				sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
 
 				logs := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"prompt\": \"%v\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["applicationName"], data["sourceLanguage"], data["model"], data["prompt"], strconv.FormatInt(time.Now().UnixNano(), 10), data["response"]))
-				authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername,grafanaAccessToken)
+				authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 				sendTelemetry(logs, authHeader, grafanaLokiUrl, "POST")
-			} 
+			}
 		}
 
 	case "Datadog":
