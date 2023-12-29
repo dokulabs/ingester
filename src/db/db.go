@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/rs/zerolog/log"
+	"github.com/pkoukk/tiktoken-go"
 )
 
 var (
@@ -207,6 +208,15 @@ func initializeDB() error {
 	return dbErr
 }
 
+func getTokens(text, model string) int {
+	tkm, err := tiktoken.EncodingForModel(model)
+	if err != nil {
+		tkm, _ = tiktoken.GetEncoding("cl100k_base")
+	}
+	token := tkm.Encode(text, nil, nil)
+	return len(token)
+}
+
 // insertDataToDB inserts data into the database.
 func insertDataToDB(data map[string]interface{}) (string, int) {
 	// Calculate usage cost based on the endpoint type
@@ -215,10 +225,16 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 	} else if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "anthropic.completions" {
 		if data["completionTokens"] != nil && data["promptTokens"] != nil {
 			data["usageCost"], _ = cost.CalculateChatCost(data["promptTokens"].(float64), data["completionTokens"].(float64), data["model"].(string))
+		} else {
+			data["promptTokens"] = getTokens(data["prompt"].(string), data["model"].(string))
+			data["completionTokens"] = getTokens(data["response"].(string), data["model"].(string))
+			data["totalTokens"] = data["promptTokens"].(float64) + data["completionTokens"].(float64)
+			data["usageCost"], _ = cost.CalculateChatCost(data["promptTokens"].(float64), data["completionTokens"].(float64), data["model"].(string))
 		}
 	} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
 		data["usageCost"], _ = cost.CalculateImageCost(data["model"].(string), data["imageSize"].(string), data["imageQuality"].(string))
 	}
+	
 
 	// Fill missing fields with nil
 	for _, field := range validFields {

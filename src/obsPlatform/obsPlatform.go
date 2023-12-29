@@ -37,53 +37,34 @@ func Init(cfg config.Configuration) error {
 func SendToPlatform(data map[string]interface{}) {
 	if grafanaLokiUrl != "" {
 		if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "cohere.generate" || data["endpoint"] == "cohere.chat" || data["endpoint"] == "cohere.summarize" || data["endpoint"] == "anthropic.completions" {
-			if data["response"] != nil && data["completionTokens"] != nil {
-				if data["finsiReason"] == nil {
-					data["finishReason"] = "null"
-				}
-				metrics := []string{
-					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v completionTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["completionTokens"]),
-					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v promptTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["promptTokens"]),
-					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v totalTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["totalTokens"]),
-					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v requestDuration=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["requestDuration"]),
-					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v usageCost=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["usageCost"]),
-				}
-				var metricsBody = []byte(strings.Join(metrics, "\n"))
-				authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-				err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
-				if err != nil {
-					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
-				}
-				authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
+			if data["finishReason"] == nil {
+				data["finishReason"] = "null"
+			}
+			metrics := []string{
+				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v completionTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["completionTokens"]),
+				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v promptTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["promptTokens"]),
+				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v totalTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["totalTokens"]),
+				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v requestDuration=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["requestDuration"]),
+				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v usageCost=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["usageCost"]),
+			}
+			var metricsBody = []byte(strings.Join(metrics, "\n"))
+			authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
+			err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+			if err != nil {
+				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
+			}
+			authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 
-				response_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"response\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["response"]))
-				err = sendTelemetry(response_log, authHeader, grafanaLokiUrl, "POST")
-				if err != nil {
-					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
-				}
+			response_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"response\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["response"]))
+			err = sendTelemetry(response_log, authHeader, grafanaLokiUrl, "POST")
+			if err != nil {
+				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
+			}
 
-				prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
-				err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
-				if err != nil {
-					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
-				}
-			} else {
-				metrics := []string{
-					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,finishReason=%v requestDuration=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"], data["requestDuration"]),
-				}
-				var metricsBody = []byte(strings.Join(metrics, "\n"))
-				authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-				err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
-				if err != nil {
-					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
-				}
-
-				authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
-				prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
-				err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
-				if err != nil {
-					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
-				}
+			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
+			err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
+			if err != nil {
+				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
 		} else if data["endpoint"] == "openai.embeddings" || data["endpoint"] == "cohere.embeddings" {
 			if data["endpoint"] == "openai.embeddings" {
