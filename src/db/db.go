@@ -228,8 +228,8 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 		} else {
 			data["promptTokens"] = getTokens(data["prompt"].(string), data["model"].(string))
 			data["completionTokens"] = getTokens(data["response"].(string), data["model"].(string))
-			data["totalTokens"] = data["promptTokens"].(float64) + data["completionTokens"].(float64)
-			data["usageCost"], _ = cost.CalculateChatCost(data["promptTokens"].(float64), data["completionTokens"].(float64), data["model"].(string))
+			data["totalTokens"] = data["promptTokens"].(int) + data["completionTokens"].(int)
+			data["usageCost"], _ = cost.CalculateChatCost(float64(data["promptTokens"].(int)), float64(data["completionTokens"].(int)), data["model"].(string))
 		}
 	} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
 		data["usageCost"], _ = cost.CalculateImageCost(data["model"].(string), data["imageSize"].(string), data["imageQuality"].(string))

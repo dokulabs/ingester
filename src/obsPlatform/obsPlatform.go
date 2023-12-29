@@ -55,13 +55,13 @@ func SendToPlatform(data map[string]interface{}) {
 			}
 			authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 
-			response_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"response\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["response"]))
+			response_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"response\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), strings.Replace(data["response"].(string), "\n", "\\n", -1))) 
 			err = sendTelemetry(response_log, authHeader, grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
 
-			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
+			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), strings.Replace(data["prompt"].(string), "\n", "\\n", -1)))
 			err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
