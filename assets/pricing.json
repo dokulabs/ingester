@@ -94,7 +94,15 @@
             "promptPrice": 0.01,
             "completionPrice": 0.03
         },
+        "gpt-4-preview": {
+            "promptPrice": 0.01,
+            "completionPrice": 0.03
+        },
         "gpt-4-1106-vision-preview": {
+            "promptPrice": 0.01,
+            "completionPrice": 0.03
+        },
+        "gpt-4-vision-preview": {
             "promptPrice": 0.01,
             "completionPrice": 0.03
         },
