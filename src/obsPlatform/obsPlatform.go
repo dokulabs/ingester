@@ -66,8 +66,8 @@ func SendToPlatform(data map[string]interface{}) {
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
-		} else if data["endpoint"] == "openai.embeddings" || data["endpoint"] == "cohere.embeddings" {
-			if data["endpoint"] == "openai.embeddings" {
+		} else if data["endpoint"] == "openai.emdeddings" || data["endpoint"] == "cohere.embeddings" {
+			if data["endpoint"] == "openai.emdeddings" {
 				metrics := []string{
 					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v promptTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["promptTokens"]),
 					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v totalTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["totalTokens"]),
@@ -117,8 +117,8 @@ func SendToPlatform(data map[string]interface{}) {
 			}
 		} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
 			metrics := []string{
-				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,image=%v,imageSize=%v,imageQuality=%v requestDuration=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["image"], data["imageSize"], data["imageQuality"], data["requestDuration"]),
-				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,image=%v,imageSize=%v,imageQuality=%v usageCost=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["image"], data["imageSize"], data["imageQuality"], data["usageCost"]),
+				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,imageSize=%v,imageQuality=%v requestDuration=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["imageSize"], data["imageQuality"], data["requestDuration"]),
+				fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v,imageSize=%v,imageQuality=%v usageCost=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["imageSize"], data["imageQuality"], data["usageCost"]),
 			}
 			var metricsBody = []byte(strings.Join(metrics, "\n"))
 			authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
@@ -126,10 +126,20 @@ func SendToPlatform(data map[string]interface{}) {
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 			}
-
+			
 			authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
-			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["revisedPrompt"]))
-			err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
+			if data["endpoint"] != "openai.images.create.variations" {
+				prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["revisedPrompt"]))
+				if data["model"] == "dall-e-2" {
+					prompt_log = []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
+				}
+				err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
+				if err != nil {
+					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
+				}
+			}
+			image_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"image\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["image"]))
+			err = sendTelemetry(image_log, authHeader, grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
@@ -146,7 +156,7 @@ func SendToPlatform(data map[string]interface{}) {
 			}
 
 			authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
-			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["revisedPrompt"]))
+			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
 			err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
