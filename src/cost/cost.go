@@ -14,6 +14,7 @@ var Pricing PricingModel
 type PricingModel struct {
 	Embeddings map[string]float64                       `json:"embeddings"`
 	Images     map[string]map[string]map[string]float64 `json:"images"`
+	Audio      map[string]float64                       `json:"audio"`
 	Chat       map[string]struct {
 		PromptPrice     float64 `json:"promptPrice"`
 		CompletionPrice float64 `json:"completionPrice"`
@@ -25,6 +26,11 @@ func validatePricingData(pricingModel PricingModel) error {
 	// Example validation for Embeddings pricing
 	if len(pricingModel.Embeddings) == 0 {
 		return fmt.Errorf("Embeddings pricing data is not defined")
+	}
+
+	// Example validation for Audio pricing
+	if len(pricingModel.Audio) == 0 {
+		return fmt.Errorf("Audio pricing data is not defined")
 	}
 
 	// Validate the Images pricing, which has nested maps
@@ -53,7 +59,16 @@ func validatePricingData(pricingModel PricingModel) error {
 
 // fetchJSONFromURL is a new function for fetching JSON content from a URL.
 func fetchJSONFromURL(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	maxRetries := 5
+	var resp *http.Response
+	var err error
+	for i := 0; i < maxRetries; i++ {
+		resp, err = http.Get(url)
+		if err == nil {
+			break
+		}
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("Failed to make request to URL %s", url)
 	}
@@ -136,4 +151,13 @@ func CalculateChatCost(promptTokens, completionTokens float64, model string) (fl
 		return 0, nil
 	}
 	return ((promptTokens / 1000) * chatModel.PromptPrice) + ((completionTokens / 1000) * chatModel.CompletionPrice), nil
+}
+
+// CalculateAudioCost calculates the cost for Audio based on the model, and prompt.
+func CalculateAudioCost(prompt string, model string) (float64, error) {
+	price, ok := Pricing.Audio[model]
+	if !ok {
+		return 0, nil
+	}
+	return ((float64(len(prompt)) / 1000) * price), nil
 }

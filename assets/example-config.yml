@@ -2,9 +2,9 @@ ingesterPort: 9044
 
 # Comment out either 'localFile' or 'url' to use only one at a time.  
 pricingInfo:
-  # localFile:
-  #   path: "../assets/pricing.json" # Path to local JSON file with LLM Pricing data
-  url: "https://raw.githubusercontent.com/dokulabs/ingester/main/assets/pricing.json" # URL to download Pricing data file
+  localFile:
+    path: "/Users/ishanjain/ingester/assets/pricing.json" # Path to local JSON file with LLM Pricing data
+  #url: "https://raw.githubusercontent.com/dokulabs/ingester/main/assets/pricing.json" # URL to download Pricing data file
 
 # Configuration for the Doku Backend Database (TimescaleDB)
 dbConfig:
@@ -21,8 +21,10 @@ dbConfig:
 
 # Configure Platform to export LLM Observability Data from Doku
 observabilityPlatform:
-  enabled: false
+  enabled: true
   grafanaCloud:
-    logsUrl: "https://logs-prod-us-central1.grafana.net"
-    logsUsername: "your_loki_username"
-    cloudAccessToken: "your_grafana_cloud_api_token"
+    promUrl: "influx-line-proxy-url"
+    promUsername: "prometheus-userid"
+    lokiUrl: "loki-push-url"
+    lokiUsername: "loki-username"
+    accessToken: "grafana-cloud-access-token"

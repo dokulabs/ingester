@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	_ "github.com/lib/pq"
+	"github.com/pkoukk/tiktoken-go"
 	"github.com/rs/zerolog/log"
 )
 
@@ -207,18 +208,34 @@ func initializeDB() error {
 	return dbErr
 }
 
+func getTokens(text, model string) int {
+	tkm, err := tiktoken.EncodingForModel(model)
+	if err != nil {
+		tkm, _ = tiktoken.GetEncoding("cl100k_base")
+	}
+	token := tkm.Encode(text, nil, nil)
+	return len(token)
+}
+
 // insertDataToDB inserts data into the database.
 func insertDataToDB(data map[string]interface{}) (string, int) {
 	// Calculate usage cost based on the endpoint type
-	if data["endpoint"] == "openai.embeddings" {
+	if data["endpoint"] == "openai.embeddings" || data["endpoint"] == "cohere.embed" {
 		data["usageCost"], _ = cost.CalculateEmbeddingsCost(data["promptTokens"].(float64), data["model"].(string))
-	} else if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "anthropic.completions" {
-		data["usageCost"], _ = cost.CalculateChatCost(data["promptTokens"].(float64), data["completionTokens"].(float64), data["model"].(string))
+	} else if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "cohere.chat" || data["endpoint"] == "cohere.summarize" || data["endpoint"] == "cohere.generate" {
+		if data["completionTokens"] != nil && data["promptTokens"] != nil {
+			data["usageCost"], _ = cost.CalculateChatCost(data["promptTokens"].(float64), data["completionTokens"].(float64), data["model"].(string))
+		} else if (data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions") && data["prompt"] != nil && data["response"] != nil {
+			data["promptTokens"] = getTokens(data["prompt"].(string), data["model"].(string))
+			data["completionTokens"] = getTokens(data["response"].(string), data["model"].(string))
+			data["totalTokens"] = data["promptTokens"].(int) + data["completionTokens"].(int)
+			data["usageCost"], _ = cost.CalculateChatCost(float64(data["promptTokens"].(int)), float64(data["completionTokens"].(int)), data["model"].(string))
+		}
 	} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
 		data["usageCost"], _ = cost.CalculateImageCost(data["model"].(string), data["imageSize"].(string), data["imageQuality"].(string))
+	} else if data["endpoint"] == "openai.audio.speech.create" {
+		data["usageCost"], _ = cost.CalculateAudioCost(data["prompt"].(string), data["model"].(string))
 	}
-
-	go obsPlatform.SendToPlatform(data)
 
 	// Fill missing fields with nil
 	for _, field := range validFields {
@@ -226,6 +243,8 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 			data[field] = nil
 		}
 	}
+
+	go obsPlatform.SendToPlatform(data)
 
 	// Define the SQL query for data insertion
 	query := fmt.Sprintf("INSERT INTO %s (time, name, environment, endpoint, sourceLanguage, applicationName, completionTokens, promptTokens, totalTokens, finishReason, requestDuration, usageCost, model, prompt, response, imageSize, revisedPrompt, image, audioVoice, finetuneJobId, finetuneJobStatus) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)", dbConfig.DataTableName)
