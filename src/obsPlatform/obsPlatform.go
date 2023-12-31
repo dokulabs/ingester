@@ -91,8 +91,8 @@ func SendToPlatform(data map[string]interface{}) {
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
-		} else if data["endpoint"] == "openai.emdeddings" || data["endpoint"] == "cohere.embed" {
-			if data["endpoint"] == "openai.emdeddings" {
+		} else if data["endpoint"] == "openai.embeddings" || data["endpoint"] == "cohere.embed" {
+			if data["endpoint"] == "openai.embeddings" {
 				metrics := []string{
 					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v promptTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["promptTokens"]),
 					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v totalTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["totalTokens"]),
