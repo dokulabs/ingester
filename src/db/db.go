@@ -12,8 +12,8 @@ import (
 	"sync"
 
 	_ "github.com/lib/pq"
-	"github.com/rs/zerolog/log"
 	"github.com/pkoukk/tiktoken-go"
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -220,12 +220,12 @@ func getTokens(text, model string) int {
 // insertDataToDB inserts data into the database.
 func insertDataToDB(data map[string]interface{}) (string, int) {
 	// Calculate usage cost based on the endpoint type
-	if data["endpoint"] == "openai.embeddings" {
+	if data["endpoint"] == "openai.embeddings" || data["endpoint"] == "cohere.embed" {
 		data["usageCost"], _ = cost.CalculateEmbeddingsCost(data["promptTokens"].(float64), data["model"].(string))
-	} else if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "anthropic.completions" {
+	} else if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "cohere.chat" || data["endpoint"] == "cohere.summarize" || data["endpoint"] == "cohere.generate" {
 		if data["completionTokens"] != nil && data["promptTokens"] != nil {
 			data["usageCost"], _ = cost.CalculateChatCost(data["promptTokens"].(float64), data["completionTokens"].(float64), data["model"].(string))
-		} else {
+		} else if (data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions") && data["prompt"] != nil && data["response"] != nil {
 			data["promptTokens"] = getTokens(data["prompt"].(string), data["model"].(string))
 			data["completionTokens"] = getTokens(data["response"].(string), data["model"].(string))
 			data["totalTokens"] = data["promptTokens"].(int) + data["completionTokens"].(int)
@@ -236,7 +236,6 @@ func insertDataToDB(data map[string]interface{}) (string, int) {
 	} else if data["endpoint"] == "openai.audio.speech.create" {
 		data["usageCost"], _ = cost.CalculateAudioCost(data["prompt"].(string), data["model"].(string))
 	}
-	
 
 	// Fill missing fields with nil
 	for _, field := range validFields {

@@ -2,7 +2,14 @@
     "embeddings": {
         "text-embedding-ada-002": 0.0001,
         "ada": 0.0001,
-        "text-ada-001": 0.0001
+        "text-ada-001": 0.0001,
+        "embed-english-v3.0": 0.0001,
+        "embed-multilingual-v3.0": 0.0001,
+        "embed-english-light-v3.0": 0.0001,
+        "embed-multilingual-light-v3.0": 0.0001,
+        "embed-english-v2.0": 0.0001,
+        "embed-english-light-v2.0": 0.0001,
+        "embed-multilingual-v2.0": 0.0001
     },
     "images": {
         "dall-e-3": {
@@ -119,20 +126,20 @@
             "completionPrice": 0.03268
         },
         "command": {
-            "promptPrice": 0.00150,
-            "completionPrice": 0.00200
+            "promptPrice": 0.001,
+            "completionPrice": 0.002
         },
         "command-nightly": {
-            "promptPrice": 0.00150,
-            "completionPrice": 0.00200
+            "promptPrice": 0.001,
+            "completionPrice": 0.002
         },
         "command-light": {
-            "promptPrice": 0.00150,
-            "completionPrice": 0.00200
+            "promptPrice": 0.0003,
+            "completionPrice": 0.0006
         },
         "command-light-nightly": {
-            "promptPrice": 0.00150,
-            "completionPrice": 0.00200
+            "promptPrice": 0.0003,
+            "completionPrice": 0.0006
         }
     }
 }

@@ -3,12 +3,14 @@ package obsPlatform
 import (
 	"bytes"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"ingester/config"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 var (
@@ -20,6 +22,28 @@ var (
 	grafanaLokiUsername   string       // grafanaLokiUsername is the username used to send data to Grafana Loki.
 	grafanaAccessToken    string       // grafanaAccessToken is the access token used to send data to Grafana.
 )
+
+func normalizeString(s string) string {
+	// Remove backslashes
+	s = strings.ReplaceAll(s, `\`, "")
+
+	// Replace double quotes with single quotes
+	s = strings.ReplaceAll(s, `"`, "'")
+
+	// Normalize spacing around hyphens: no space before, one space after hyphens
+	s = strings.ReplaceAll(s, " - ", " -")
+	s = strings.ReplaceAll(s, " -", " -")
+	s = strings.ReplaceAll(s, "- ", " - ")
+
+	// Collapse multiple spaces into a single space
+	re := regexp.MustCompile(`\s+`)
+	s = re.ReplaceAllString(s, " ")
+
+	// Trim leading and trailing whitespace
+	s = strings.TrimSpace(s)
+
+	return s
+}
 
 func Init(cfg config.Configuration) error {
 	httpClient = &http.Client{Timeout: 5 * time.Second}
@@ -53,20 +77,21 @@ func SendToPlatform(data map[string]interface{}) {
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 			}
+
 			authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 
-			response_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"response\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), strings.Replace(data["response"].(string), "\n", "\\n", -1))) 
+			response_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"response\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), normalizeString(data["response"].(string))))
 			err = sendTelemetry(response_log, authHeader, grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
 
-			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), strings.Replace(data["prompt"].(string), "\n", "\\n", -1)))
+			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), normalizeString(data["prompt"].(string))))
 			err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
-		} else if data["endpoint"] == "openai.emdeddings" || data["endpoint"] == "cohere.embeddings" {
+		} else if data["endpoint"] == "openai.emdeddings" || data["endpoint"] == "cohere.embed" {
 			if data["endpoint"] == "openai.emdeddings" {
 				metrics := []string{
 					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v promptTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["promptTokens"]),
@@ -89,7 +114,9 @@ func SendToPlatform(data map[string]interface{}) {
 				}
 			} else {
 				metrics := []string{
+					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v promptTokens=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["promptTokens"]),
 					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v requestDuration=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["requestDuration"]),
+					fmt.Sprintf(`doku_llm,environment=%v,endpoint=%v,applicationName=%v,source=%v,model=%v usageCost=%v`, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["usageCost"]),
 				}
 				var metricsBody = []byte(strings.Join(metrics, "\n"))
 				authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
@@ -126,7 +153,7 @@ func SendToPlatform(data map[string]interface{}) {
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 			}
-			
+
 			authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 			if data["endpoint"] != "openai.images.create.variations" {
 				prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["revisedPrompt"]))

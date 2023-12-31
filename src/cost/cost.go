@@ -14,7 +14,7 @@ var Pricing PricingModel
 type PricingModel struct {
 	Embeddings map[string]float64                       `json:"embeddings"`
 	Images     map[string]map[string]map[string]float64 `json:"images"`
-	Audio 	   map[string]float64 					    `json:"audio"`
+	Audio      map[string]float64                       `json:"audio"`
 	Chat       map[string]struct {
 		PromptPrice     float64 `json:"promptPrice"`
 		CompletionPrice float64 `json:"completionPrice"`
