@@ -8,7 +8,7 @@
 [![Tests](https://github.com/dokulabs/ingester/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/dokulabs/ingester/actions/workflows/tests.yml)
 [![CodeQL](https://github.com/dokulabs/ingester/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/dokulabs/ingester/actions/workflows/github-code-scanning/codeql)
 
-Doku Ingester is an integral part of Doku's LLM Observability tools, facilitating real-time data ingestion from `dokumetry` [Python](https://github.com/dokulabs/python-sdk) and [Node](https://github.com/dokulabs/node-sdk) SDKs for Large Language Models (LLM) analytics. It ensures the secure collection of telemetry data, enabling insights on usage patterns, performance metrics, and cost management for LLMs.
+Doku Ingester is an integral part of Doku's LLM Observability tools, facilitating real-time data ingestion from `dokumetry` [Python](https://github.com/dokulabs/dokumetry-python) and [Node](https://github.com/dokulabs/dokumetry-node) SDKs for Large Language Models (LLM) analytics. It ensures the secure collection of telemetry data, enabling insights on usage patterns, performance metrics, and cost management for LLMs.
 
 ## Features
 
