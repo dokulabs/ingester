@@ -39,7 +39,9 @@ type Configuration struct {
 			AccessToken  string `yaml:"accessToken"`
 		} `yaml:"grafanaCloud"`
 		NewRelic struct {
-			Key string `yaml:"key"`
+			Key        string `yaml:"key"`
+			MetricsURL string `yaml:"metricsUrl"`
+			LogsURL    string `yaml:"logsUrl"`
 		} `yaml:"newRelic"`
 	} `yaml:"observabilityPlatform"`
 }

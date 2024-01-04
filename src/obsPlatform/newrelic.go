@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -14,57 +14,55 @@ import (
 func configureNewRelicData(data map[string]interface{}) {
 	// The current time for the timestamp field.
 	currentTime := strconv.FormatInt(time.Now().Unix(), 10)
-	newRelicLicenseKey := "5812c443ef16d34296041417bcfe3234FFFFNRAL"
-	newRelicUrl := "https://metric-api.newrelic.com/metric/v1"
 
 	if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "cohere.generate" || data["endpoint"] == "cohere.chat" || data["endpoint"] == "cohere.summarize" || data["endpoint"] == "anthropic.completions" {
 		if data["finishReason"] == nil {
 			data["finishReason"] = "null"
 		}
 
-	jsonMetrics := []string{
-		fmt.Sprintf(`{
+		jsonMetrics := []string{
+			fmt.Sprintf(`{
 			"name": "doku.LLM.Completion.Tokens",
 			"type": "gauge",
 			"value": %f,
 			"timestamp": %s,
 			"attributes": {"environment": "%v", "endpoint": "%v", "applicationName": "%v", "source": "%v", "model": "%v", "finishReason": "%v"}
-		}`, float64(data["completionTokens"].(int)), currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"]), 
-		fmt.Sprintf(`{
+		}`, float64(data["completionTokens"].(int)), currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"]),
+			fmt.Sprintf(`{
 			"name": "doku.LLM.Prompt.Tokens",
 			"type": "gauge",
 			"value": %f,
 			"timestamp": %s,
 			"attributes": {"environment": "%v", "endpoint": "%v", "applicationName": "%v", "source": "%v", "model": "%v", "finishReason": "%v"}
 		}`, float64(data["promptTokens"].(int)), currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"]),
-		fmt.Sprintf(`{
+			fmt.Sprintf(`{
 			"name": "doku.LLM.Total.Tokens",
 			"type": "gauge",
 			"value": %f,
 			"timestamp": %s,
 			"attributes": {"environment": "%v", "endpoint": "%v", "applicationName": "%v", "source": "%v", "model": "%v", "finishReason": "%v"}
 		}`, float64(data["totalTokens"].(int)), currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"]),
-		fmt.Sprintf(`{
+			fmt.Sprintf(`{
 			"name": "doku.LLM.Request.Duration",
 			"type": "gauge",
 			"value": %v,
 			"timestamp": %s,
 			"attributes": {"environment": "%v", "endpoint": "%v", "applicationName": "%v", "source": "%v", "model": "%v", "finishReason": "%v"}
 		}`, data["requestDuration"], currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"]),
-		fmt.Sprintf(`{
+			fmt.Sprintf(`{
 			"name": "doku.LLM.Usage.Cost",
 			"type": "gauge",
 			"value": %v,
 			"timestamp": %s,
 			"attributes": {"environment": "%v", "endpoint": "%v", "applicationName": "%v", "source": "%v", "model": "%v", "finishReason": "%v"}
 		}`, data["usageCost"], currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finishReason"]),
-	}
+		}
 
-	// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
-	jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
+		// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
+		jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-	sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
-	
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+
 	} else if data["endpoint"] == "openai.embeddings" || data["endpoint"] == "cohere.embed" {
 		if data["endpoint"] == "openai.embeddings" {
 			jsonMetrics := []string{
@@ -101,7 +99,7 @@ func configureNewRelicData(data map[string]interface{}) {
 			// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
 			jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
+			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
 		} else {
 			jsonMetrics := []string{
 				fmt.Sprintf(`{
@@ -130,25 +128,25 @@ func configureNewRelicData(data map[string]interface{}) {
 			// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
 			jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
-			}
-		} else if data["endpoint"] == "openai.fine_tuning" {
-			jsonMetrics := []string{
-				fmt.Sprintf(`{
+			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+		}
+	} else if data["endpoint"] == "openai.fine_tuning" {
+		jsonMetrics := []string{
+			fmt.Sprintf(`{
 					"name": "doku.LLM.Request.Duration",
 					"type": "gauge",
 					"value": %v,
 					"timestamp": %s,
 					"attributes": {"environment": "%v", "endpoint": "%v", "applicationName": "%v", "source": "%v", "model": "%v", "finetuneJobId": "%v"}
 				}`, data["requestDuration"], currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["finetuneJobId"]),
-			}
-			// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
-			jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
+		}
+		// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
+		jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
-		} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
-			jsonMetrics := []string{
-				fmt.Sprintf(`{
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+	} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
+		jsonMetrics := []string{
+			fmt.Sprintf(`{
 					"name": "doku_llm.RequestDuration",
 					"type": "gauge",
 					"value": %v,
@@ -163,7 +161,7 @@ func configureNewRelicData(data map[string]interface{}) {
 						"imageQuality": "%v"
 					}
 				}`, data["requestDuration"], currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["imageSize"], data["imageQuality"]),
-				fmt.Sprintf(`{
+			fmt.Sprintf(`{
 					"name": "doku_llm.UsageCost",
 					"type": "gauge",
 					"value": %v,
@@ -178,35 +176,35 @@ func configureNewRelicData(data map[string]interface{}) {
 						"imageQuality": "%v"
 					}
 				}`, data["usageCost"], currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["imageSize"], data["imageQuality"]),
-			}
+		}
 
-			// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
-			jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
+		// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
+		jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
-		} else if data["endpoint"] == "openai.audio.speech.create" {
-			jsonMetrics := []string{
-				fmt.Sprintf(`{
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+	} else if data["endpoint"] == "openai.audio.speech.create" {
+		jsonMetrics := []string{
+			fmt.Sprintf(`{
 					"name": "doku_llm.RequestDuration",
 					"type": "gauge",
 					"value": %v,
 					"timestamp": %s,
 					"attributes": {"environment": "%v", "endpoint": "%v", "applicationName": "%v", "source": "%v", "model": "%v", "audioVoice": "%v"}
 				}`, data["requestDuration"], currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["audioVoice"]),
-				fmt.Sprintf(`{
+			fmt.Sprintf(`{
 					"name": "doku_llm.UsageCost",
 					"type": "gauge",
 					"value": %v,
 					"timestamp": %s,
 					"attributes": {"environment": "%v", "endpoint": "%v", "applicationName": "%v", "source": "%v", "model": "%v", "audioVoice": "%v"}
 				}`, data["usageCost"], currentTime, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], data["audioVoice"]),
-			}
-
-			// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
-			jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
-
-			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
 		}
+
+		// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
+		jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
+
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+	}
 }
 
 func sendTelemetryNewRelic(telemetryData, authHeader string, headerKey string, url string, requestType string) error {
