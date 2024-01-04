@@ -22,7 +22,7 @@ var (
 	grafanaLokiUsername   string       // grafanaLokiUsername is the username used to send data to Grafana Loki.
 	grafanaAccessToken    string       // grafanaAccessToken is the access token used to send data to Grafana.
 	newRelicLicenseKey    string       // newRelicKey is the key used to send data to New Relic.
-	newRelicMetricsUrl    string       // newRelicUrl is the URL used to send data to New Relic.
+	newRelicMetricsUrl    string       // newRelicMetricsUrl is the URL used to send data to New Relic.
 	newRelicLogsUrl       string       // newRelicLogsUrl is the URL used to send logs to New Relic.
 )
 
@@ -196,7 +196,7 @@ func SendToPlatform(data map[string]interface{}) {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
 		}
-	} else if newRelicKey != "" {
+	} else if newRelicMetricsUrl != "" {
 		configureNewRelicData(data)
 	}
 }
