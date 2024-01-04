@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"ingester/config"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,6 +22,8 @@ var (
 	grafanaLokiUrl        string       // grafanaPostUrl is the URL used to send data to Grafana Loki.
 	grafanaLokiUsername   string       // grafanaLokiUsername is the username used to send data to Grafana Loki.
 	grafanaAccessToken    string       // grafanaAccessToken is the access token used to send data to Grafana.
+	newRelicLicenseKey    string       // newRelicKey is the New Relic license key used to send data to New Relic.
+	newRelicUrl		      string       // newRelicUrl is the New Relic URL used to send data to New Relic.
 )
 
 func normalizeString(s string) string {
@@ -53,6 +56,9 @@ func Init(cfg config.Configuration) error {
 		grafanaLokiUrl = cfg.ObservabilityPlatform.GrafanaCloud.LokiURL
 		grafanaLokiUsername = cfg.ObservabilityPlatform.GrafanaCloud.LokiUsername
 		grafanaAccessToken = cfg.ObservabilityPlatform.GrafanaCloud.AccessToken
+	} else if cfg.ObservabilityPlatform.NewRelic.Key != "" {
+		newRelicLicenseKey = cfg.ObservabilityPlatform.NewRelic.Key
+		newRelicUrl = "https://metric-api.newrelic.com/metric/v1"
 	}
 	return nil
 }
@@ -73,7 +79,7 @@ func SendToPlatform(data map[string]interface{}) {
 			}
 			var metricsBody = []byte(strings.Join(metrics, "\n"))
 			authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-			err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+			err := sendTelemetryGrafana(metricsBody, authHeader, "Authorization", grafanaPromUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 			}
@@ -81,13 +87,13 @@ func SendToPlatform(data map[string]interface{}) {
 			authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 
 			response_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"response\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), normalizeString(data["response"].(string))))
-			err = sendTelemetry(response_log, authHeader, grafanaLokiUrl, "POST")
+			err = sendTelemetryGrafana(response_log, authHeader, "Authorization", grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
 
 			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), normalizeString(data["prompt"].(string))))
-			err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
+			err = sendTelemetryGrafana(prompt_log, authHeader, "Authorization", grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
@@ -101,14 +107,14 @@ func SendToPlatform(data map[string]interface{}) {
 				}
 				var metricsBody = []byte(strings.Join(metrics, "\n"))
 				authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-				err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+				err := sendTelemetryGrafana(metricsBody, authHeader, "Authorization", grafanaPromUrl, "POST")
 				if err != nil {
 					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 				}
 
 				authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 				prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
-				err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
+				err = sendTelemetryGrafana(prompt_log, authHeader, "Authorization", grafanaLokiUrl, "POST")
 				if err != nil {
 					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 				}
@@ -120,14 +126,14 @@ func SendToPlatform(data map[string]interface{}) {
 				}
 				var metricsBody = []byte(strings.Join(metrics, "\n"))
 				authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-				err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+				err := sendTelemetryGrafana(metricsBody, authHeader, "Authorization", grafanaPromUrl, "POST")
 				if err != nil {
 					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 				}
 
 				authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 				prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
-				err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
+				err = sendTelemetryGrafana(prompt_log, authHeader, "Authorization", grafanaLokiUrl, "POST")
 				if err != nil {
 					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 				}
@@ -138,7 +144,7 @@ func SendToPlatform(data map[string]interface{}) {
 			}
 			var metricsBody = []byte(strings.Join(metrics, "\n"))
 			authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-			err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+			err := sendTelemetryGrafana(metricsBody, authHeader, "Authorization", grafanaPromUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 			}
@@ -149,7 +155,7 @@ func SendToPlatform(data map[string]interface{}) {
 			}
 			var metricsBody = []byte(strings.Join(metrics, "\n"))
 			authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-			err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+			err := sendTelemetryGrafana(metricsBody, authHeader, "Authorization", grafanaPromUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 			}
@@ -160,13 +166,13 @@ func SendToPlatform(data map[string]interface{}) {
 				if data["model"] == "dall-e-2" {
 					prompt_log = []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
 				}
-				err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
+				err = sendTelemetryGrafana(prompt_log, authHeader, "Authorization", grafanaLokiUrl, "POST")
 				if err != nil {
 					log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 				}
 			}
 			image_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"image\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["image"]))
-			err = sendTelemetry(image_log, authHeader, grafanaLokiUrl, "POST")
+			err = sendTelemetryGrafana(image_log, authHeader, "Authorization", grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
@@ -177,31 +183,31 @@ func SendToPlatform(data map[string]interface{}) {
 			}
 			var metricsBody = []byte(strings.Join(metrics, "\n"))
 			authHeader := fmt.Sprintf("Bearer %v:%v", grafanaPromUsername, grafanaAccessToken)
-			err := sendTelemetry(metricsBody, authHeader, grafanaPromUrl, "POST")
+			err := sendTelemetryGrafana(metricsBody, authHeader, "Authorization", grafanaPromUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Prometheus")
 			}
 
 			authHeader = fmt.Sprintf("Bearer %v:%v", grafanaLokiUsername, grafanaAccessToken)
 			prompt_log := []byte(fmt.Sprintf("{\"streams\": [{\"stream\": {\"environment\": \"%v\",\"endpoint\": \"%v\", \"applicationName\": \"%v\", \"source\": \"%v\", \"model\": \"%v\", \"type\": \"prompt\" }, \"values\": [[\"%s\", \"%v\"]]}]}", data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"], strconv.FormatInt(time.Now().UnixNano(), 10), data["prompt"]))
-			err = sendTelemetry(prompt_log, authHeader, grafanaLokiUrl, "POST")
+			err = sendTelemetryGrafana(prompt_log, authHeader, "Authorization", grafanaLokiUrl, "POST")
 			if err != nil {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
 		}
-	} else {
-		fmt.Println("No Observability Platform configured.")
+	} else if newRelicLicenseKey != "" {
+		configureNewRelicData(data)
 	}
 }
 
-func sendTelemetry(telemetryData []byte, authHeader string, url string, requestType string) error {
+func sendTelemetryGrafana(telemetryData []byte, authHeader string, headerKey string, url string, requestType string) error {
 
 	req, err := http.NewRequest(requestType, url, bytes.NewBuffer(telemetryData))
 	if err != nil {
 		return fmt.Errorf("Error creating request")
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", authHeader)
+	req.Header.Set(fmt.Sprintf("%s", headerKey), authHeader)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

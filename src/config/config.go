@@ -38,6 +38,9 @@ type Configuration struct {
 			LokiUsername string `yaml:"lokiUsername"`
 			AccessToken  string `yaml:"accessToken"`
 		} `yaml:"grafanaCloud"`
+		NewRelic struct {
+			Key string `yaml:"key"`
+		} `yaml:"newRelic"`
 	} `yaml:"observabilityPlatform"`
 }
 
