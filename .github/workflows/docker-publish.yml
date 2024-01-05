@@ -11,6 +11,8 @@ env:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    outputs: 
+      tags: ${{ steps.set-tags-output.outputs.tags }}
     permissions:
       contents: write
       packages: write
@@ -67,6 +69,10 @@ jobs:
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+      - name: Set tag output
+        id: set-tags-output
+        run: echo "::set-output name=tags::${{ steps.meta.outputs.tags }}"
   
   binaries:
     name: Publish binaries
@@ -101,5 +107,5 @@ jobs:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: src/ingester-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
         asset_name: ingester-${{ matrix.platform.os }}-${{ matrix.platform.arch }}
-        tag: ${{ steps.meta.outputs.tags }}
+        tag: ${{ needs.docker.outputs.tags }}
         overwrite: true
