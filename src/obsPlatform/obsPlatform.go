@@ -198,6 +198,8 @@ func SendToPlatform(data map[string]interface{}) {
 		}
 	} else if newRelicMetricsUrl != "" {
 		configureNewRelicData(data)
+	} else {
+		log.Info().Msg("No Observability Platform configured")
 	}
 }
 

@@ -67,25 +67,27 @@ func configureNewRelicData(data map[string]interface{}) {
 		logs := []string{
 			fmt.Sprintf(`{
 				"timestamp": %s,
-				"message": "Response: %s",
+				"message": "%s",
 				"attributes": {
 					"environment": "%v",
 					"endpoint": "%v",
 					"applicationName": "%v",
 					"source": "%v",
-					"model": "%v"
+					"model": "%v",
+					"type": "response"
 				}
 			}`, currentTime, normalizeString(data["response"].(string)), data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]), // Assuming 'response' is present in data and is a string.
 
 			fmt.Sprintf(`{
 				"timestamp": %s,
-				"message": "Prompt: %s",
+				"message": "%s",
 				"attributes": {
 					"environment": "%v",
 					"endpoint": "%v",
 					"applicationName": "%v",
 					"source": "%v",
-					"model": "%v"
+					"model": "%v",
+					"type": "prompt"
 				}
 			}`, currentTime, normalizeString(data["prompt"].(string)), data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]), // Assuming 'prompt' is present in data and is a string.
 		}
@@ -138,20 +140,7 @@ func configureNewRelicData(data map[string]interface{}) {
 			logs := []string{
 				fmt.Sprintf(`{
 					"timestamp": %s,
-					"message": "Response: %s",
-					"attributes": {
-						"environment": "%v",
-						"endpoint": "%v",
-						"applicationName": "%v",
-						"source": "%v",
-						"model": "%v",
-						"type": "response"
-					}
-				}`, currentTime, normalizeString(data["response"].(string)), data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]),
-
-				fmt.Sprintf(`{
-					"timestamp": %s,
-					"message": "Prompt: %s",
+					"message": "%s",
 					"attributes": {
 						"environment": "%v",
 						"endpoint": "%v",
@@ -210,9 +199,8 @@ func configureNewRelicData(data map[string]interface{}) {
 						"type": "prompt"
 					}
 				}`,
-					// Convert Unix timestamp in nanoseconds to milliseconds.
-					strconv.FormatInt(time.Now().UnixNano()/1e6, 10),
-					data["prompt"], // Data is assumed to be properly formatted for JSON.
+					currentTime,
+					data["prompt"], 
 					data["environment"],
 					data["endpoint"],
 					data["applicationName"],
@@ -293,7 +281,7 @@ func configureNewRelicData(data map[string]interface{}) {
 			// Build the prompt log
 			logs = append(logs, fmt.Sprintf(`{
 				"timestamp": "%s",
-				"message": "Prompt: %s",
+				"message": "%s",
 				"attributes": {
 					"environment": "%v",
 					"endpoint": "%v",
@@ -308,7 +296,7 @@ func configureNewRelicData(data map[string]interface{}) {
 		// Build the image log
 		logs = append(logs, fmt.Sprintf(`{
 			"timestamp": "%s",
-			"message": "Image: %s",
+			"message": "%s",
 			"attributes": {
 				"environment": "%v",
 				"endpoint": "%v",
@@ -317,7 +305,7 @@ func configureNewRelicData(data map[string]interface{}) {
 				"model": "%v",
 				"type": "image"
 			}
-		}`, currentTime, data["imageURL"], data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]))
+		}`, currentTime, data["image"], data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]))
 
 		// Combine the individual log entries into a full JSON payload
 		jsonData = fmt.Sprintf(`[{"logs": [%s]}]`, strings.Join(logs, ","))
@@ -384,7 +372,7 @@ func sendTelemetryNewRelic(telemetryData, authHeader string, headerKey string, u
 		return fmt.Errorf("Error sending request to %v", url)
 	} else if resp.StatusCode == 404 {
 		return fmt.Errorf("Provided URL %v is not valid", url)
-	} else if resp.StatusCode == 401 {
+	} else if resp.StatusCode == 403 {
 		return fmt.Errorf("Provided credentials are not valid")
 	}
 
