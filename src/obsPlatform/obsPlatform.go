@@ -21,6 +21,9 @@ var (
 	grafanaLokiUrl        string       // grafanaPostUrl is the URL used to send data to Grafana Loki.
 	grafanaLokiUsername   string       // grafanaLokiUsername is the username used to send data to Grafana Loki.
 	grafanaAccessToken    string       // grafanaAccessToken is the access token used to send data to Grafana.
+	newRelicLicenseKey    string       // newRelicKey is the key used to send data to New Relic.
+	newRelicMetricsUrl    string       // newRelicMetricsUrl is the URL used to send data to New Relic.
+	newRelicLogsUrl       string       // newRelicLogsUrl is the URL used to send logs to New Relic.
 )
 
 func normalizeString(s string) string {
@@ -53,6 +56,10 @@ func Init(cfg config.Configuration) error {
 		grafanaLokiUrl = cfg.ObservabilityPlatform.GrafanaCloud.LokiURL
 		grafanaLokiUsername = cfg.ObservabilityPlatform.GrafanaCloud.LokiUsername
 		grafanaAccessToken = cfg.ObservabilityPlatform.GrafanaCloud.AccessToken
+	} else if cfg.ObservabilityPlatform.NewRelic.Key != "" {
+		newRelicLicenseKey = cfg.ObservabilityPlatform.NewRelic.Key
+		newRelicMetricsUrl = cfg.ObservabilityPlatform.NewRelic.MetricsURL
+		newRelicLogsUrl = cfg.ObservabilityPlatform.NewRelic.LogsURL
 	}
 	return nil
 }
@@ -189,8 +196,10 @@ func SendToPlatform(data map[string]interface{}) {
 				log.Error().Err(err).Msgf("Error sending data to Grafana Cloud Loki")
 			}
 		}
+	} else if newRelicMetricsUrl != "" {
+		configureNewRelicData(data)
 	} else {
-		fmt.Println("No Observability Platform configured.")
+		log.Info().Msg("No Observability Platform configured")
 	}
 }
 

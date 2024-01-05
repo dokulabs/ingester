@@ -6,6 +6,7 @@ require (
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/gorilla/mux v1.8.1
 	github.com/lib/pq v1.10.9
+	github.com/newrelic/newrelic-telemetry-sdk-go v0.8.1
 	github.com/pkoukk/tiktoken-go v0.1.6
 	github.com/rs/zerolog v1.31.0
 	gopkg.in/yaml.v2 v2.4.0
