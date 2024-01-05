@@ -135,7 +135,6 @@ func configureNewRelicData(data map[string]interface{}) {
 
 			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
 
-
 			// Build log entries with varying labels
 			logs := []string{
 				fmt.Sprintf(`{
@@ -200,7 +199,7 @@ func configureNewRelicData(data map[string]interface{}) {
 					}
 				}`,
 					currentTime,
-					data["prompt"], 
+					data["prompt"],
 					data["environment"],
 					data["endpoint"],
 					data["applicationName"],
