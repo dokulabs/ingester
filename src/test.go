@@ -3,9 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -13,11 +12,18 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	httpClient = &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	newRelicLicenseKey = "d160aa7ae7155d0761eb2a68349bc69aFFFFNRAL"
+	newRelicMetricsUrl = "https://metric-api.newrelic.com/metric/v1"
+	newRelicLogsUrl    = "https://log-api.newrelic.com/log/v1"
+)
+
 func configureNewRelicData(data map[string]interface{}) {
 	// The current time for the timestamp field.
 	currentTime := strconv.FormatInt(time.Now().Unix(), 10)
-	newRelicLicenseKey := "5812c443ef16d34296041417bcfe3234FFFFNRAL"
-	newRelicUrl := "https://metric-api.newrelic.com/metric/v1"
 
 	if data["endpoint"] == "openai.chat.completions" || data["endpoint"] == "openai.completions" || data["endpoint"] == "cohere.generate" || data["endpoint"] == "cohere.chat" || data["endpoint"] == "cohere.summarize" || data["endpoint"] == "anthropic.completions" {
 		if data["finishReason"] == nil {
@@ -65,7 +71,41 @@ func configureNewRelicData(data map[string]interface{}) {
 		// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
 		jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+
+		// Use the values from the provided log lines and adapt them to the desired format.
+		logs := []string{
+			fmt.Sprintf(`{
+				"timestamp": %s,
+				"message": "%s",
+				"attributes": {
+					"environment": "%v",
+					"endpoint": "%v",
+					"applicationName": "%v",
+					"source": "%v",
+					"model": "%v",
+					"type": "response"
+				}
+			}`, currentTime, normalizeString(data["response"].(string)), data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]), // Assuming 'response' is present in data and is a string.
+
+			fmt.Sprintf(`{
+				"timestamp": %s,
+				"message": "%s",
+				"attributes": {
+					"environment": "%v",
+					"endpoint": "%v",
+					"applicationName": "%v",
+					"source": "%v",
+					"model": "%v",
+					"type": "prompt"
+				}
+			}`, currentTime, normalizeString(data["prompt"].(string)), data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]), // Assuming 'prompt' is present in data and is a string.
+		}
+
+		// Combine the individual log entries into a full JSON payload
+		jsonData = fmt.Sprintf(`[{"logs": [%s]}]`, strings.Join(logs, ","))
+
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicLogsUrl, "POST")
 
 	} else if data["endpoint"] == "openai.embeddings" || data["endpoint"] == "cohere.embed" {
 		if data["endpoint"] == "openai.embeddings" {
@@ -103,7 +143,27 @@ func configureNewRelicData(data map[string]interface{}) {
 			// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
 			jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
+			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+
+			// Build log entries with varying labels
+			logs := []string{
+				fmt.Sprintf(`{
+					"timestamp": %s,
+					"message": "%s",
+					"attributes": {
+						"environment": "%v",
+						"endpoint": "%v",
+						"applicationName": "%v",
+						"source": "%v",
+						"model": "%v",
+						"type": "prompt"
+					}
+				}`, currentTime, normalizeString(data["prompt"].(string)), data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]),
+			}
+			// Combine the individual log entries into a full JSON payload
+			jsonData = fmt.Sprintf(`[{"logs": [%s]}]`, strings.Join(logs, ","))
+
+			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicLogsUrl, "POST")
 		} else {
 			jsonMetrics := []string{
 				fmt.Sprintf(`{
@@ -132,7 +192,35 @@ func configureNewRelicData(data map[string]interface{}) {
 			// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
 			jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
+			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+
+			logs := []string{
+				// Assuming 'prompt' exists and is a string in data
+				fmt.Sprintf(`{
+					"timestamp": "%s",
+					"message": "%s",
+					"attributes": {
+						"environment": "%v",
+						"endpoint": "%v",
+						"applicationName": "%v",
+						"source": "%v",
+						"model": "%v",
+						"type": "prompt"
+					}
+				}`,
+					currentTime,
+					data["prompt"],
+					data["environment"],
+					data["endpoint"],
+					data["applicationName"],
+					data["sourceLanguage"],
+					data["model"]),
+			}
+
+			// Combine the individual log entries into a full JSON payload
+			jsonData = fmt.Sprintf(`[{"logs": [%s]}]`, strings.Join(logs, ","))
+
+			sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicLogsUrl, "POST")
 		}
 	} else if data["endpoint"] == "openai.fine_tuning" {
 		jsonMetrics := []string{
@@ -147,7 +235,7 @@ func configureNewRelicData(data map[string]interface{}) {
 		// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
 		jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
 	} else if data["endpoint"] == "openai.images.create" || data["endpoint"] == "openai.images.create.variations" {
 		jsonMetrics := []string{
 			fmt.Sprintf(`{
@@ -185,7 +273,54 @@ func configureNewRelicData(data map[string]interface{}) {
 		// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
 		jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+
+		var logs []string
+		// Check the condition for the prompt
+		if data["endpoint"] != "openai.images.create.variations" {
+			var promptMessage string
+			if data["model"] == "dall-e-2" {
+				// Assuming data["prompt"] exists and is a string
+				promptMessage = normalizeString(data["prompt"].(string))
+			} else {
+				// Assuming data["revisedPrompt"] exists and is a string
+				promptMessage = normalizeString(data["revisedPrompt"].(string))
+			}
+
+			// Build the prompt log
+			logs = append(logs, fmt.Sprintf(`{
+				"timestamp": "%s",
+				"message": "%s",
+				"attributes": {
+					"environment": "%v",
+					"endpoint": "%v",
+					"applicationName": "%v",
+					"source": "%v",
+					"model": "%v",
+					"type": "prompt"
+				}
+			}`, currentTime, promptMessage, data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]))
+		}
+
+		// Build the image log
+		logs = append(logs, fmt.Sprintf(`{
+			"timestamp": "%s",
+			"message": "%s",
+			"attributes": {
+				"environment": "%v",
+				"endpoint": "%v",
+				"applicationName": "%v",
+				"source": "%v",
+				"model": "%v",
+				"type": "image"
+			}
+		}`, currentTime, data["image"], data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]))
+
+		// Combine the individual log entries into a full JSON payload
+		jsonData = fmt.Sprintf(`[{"logs": [%s]}]`, strings.Join(logs, ","))
+
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicLogsUrl, "POST")
+
 	} else if data["endpoint"] == "openai.audio.speech.create" {
 		jsonMetrics := []string{
 			fmt.Sprintf(`{
@@ -207,12 +342,33 @@ func configureNewRelicData(data map[string]interface{}) {
 		// Join the individual metric strings into a comma-separated string and enclose in a JSON array.
 		jsonData := fmt.Sprintf(`[{"metrics": [%s]}]`, strings.Join(jsonMetrics, ","))
 
-		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicUrl, "POST")
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicMetricsUrl, "POST")
+
+		logs := []string{
+			// Assuming 'prompt' exists and is a string in data
+			fmt.Sprintf(`{
+				"timestamp": "%s",
+				"message": "%s",
+				"attributes": {
+					"environment": "%v",
+					"endpoint": "%v",
+					"applicationName": "%v",
+					"source": "%v",
+					"model": "%v",
+					"type": "prompt"
+				}
+			}`, currentTime, data["prompt"], data["environment"], data["endpoint"], data["applicationName"], data["sourceLanguage"], data["model"]),
+		}
+
+		// Combine the individual log entries into a full JSON payload
+		jsonData = fmt.Sprintf(`[{"logs": [%s]}]`, strings.Join(logs, ","))
+
+		sendTelemetryNewRelic(jsonData, newRelicLicenseKey, "Api-Key", newRelicLogsUrl, "POST")
 	}
 }
 
 func sendTelemetryNewRelic(telemetryData, authHeader string, headerKey string, url string, requestType string) error {
-	httpClient := &http.Client{Timeout: 5 * time.Second}
+
 	req, err := http.NewRequest(requestType, url, bytes.NewBufferString(telemetryData))
 	if err != nil {
 		return fmt.Errorf("Error creating request")
@@ -225,41 +381,12 @@ func sendTelemetryNewRelic(telemetryData, authHeader string, headerKey string, u
 		return fmt.Errorf("Error sending request to %v", url)
 	} else if resp.StatusCode == 404 {
 		return fmt.Errorf("Provided URL %v is not valid", url)
-	} else if resp.StatusCode == 401 {
+	} else if resp.StatusCode == 403 {
 		return fmt.Errorf("Provided credentials are not valid")
 	}
 
 	defer resp.Body.Close()
-	// Read the response body.
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("Error reading response body: %v\n", err)
-		os.Exit(1)
-	}
 
-	// Print the response status and the body.
-	fmt.Printf("Response status: %s\n", resp.Status)
-	fmt.Printf("Response body: %s\n", string(body))
 	log.Info().Msgf("Successfully exported data to %v", url)
 	return nil
-}
-
-func main() {
-
-	data := map[string]interface{}{
-		"endpoint":         "openai.chat.completions",
-		"environment":      "production",
-		"applicationName":  "doku",
-		"sourceLanguage":   "python",
-		"model":            "davinci",
-		"completionTokens": 100,
-		"promptTokens":     10,
-		"totalTokens":      110,
-		"requestDuration":  0.1,
-		"usageCost":        0.0001,
-		"finishReason":     "stop",
-	}
-
-	configureNewRelicData(data)
-
 }
